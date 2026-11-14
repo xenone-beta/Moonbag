@@ -89,6 +89,28 @@ class GameEngine(
         return proceeds
     }
 
+    fun placeOrder(coinId: String, type: OrderType, trigger: Double, amount: Double): OrderResult {
+        val (next, result) = Orders.place(_state.value, coinId, type, trigger, amount, clock())
+        if (result is OrderResult.Placed) _state.value = next
+        return result
+    }
+
+    fun cancelOrder(orderId: Long) {
+        _state.value = Orders.cancel(_state.value, orderId)
+    }
+
+    fun startMarketing(coinId: String, tier: MarketingTier): Boolean {
+        val next = CoinManagement.startMarketing(_state.value, coinId, tier) ?: return false
+        _state.value = next
+        return true
+    }
+
+    fun burn(coinId: String, amount: Double): Boolean {
+        val next = CoinManagement.burn(_state.value, coinId, amount) ?: return false
+        _state.value = next
+        return true
+    }
+
     fun buy(coinId: String, usd: Double): TradeResult {
         val (next, result) = Trading.buy(_state.value, coinId, usd, clock())
         if (result is TradeResult.Ok) _state.value = next

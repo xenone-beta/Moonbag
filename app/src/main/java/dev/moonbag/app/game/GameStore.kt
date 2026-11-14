@@ -28,7 +28,12 @@ class GameStore(context: Context) {
         get() = prefs.getBoolean(KEY_HAPTICS, true)
         set(value) = prefs.edit().putBoolean(KEY_HAPTICS, value).apply()
 
+    var tutorialDone: Boolean
+        get() = prefs.getBoolean(KEY_TUTORIAL, false)
+        set(value) = prefs.edit().putBoolean(KEY_TUTORIAL, value).apply()
+
     private companion object {
+        const val KEY_TUTORIAL = "tutorial_done"
         const val KEY_SAVE = "save"
         const val KEY_DYNAMIC = "dynamic_color"
         const val KEY_HAPTICS = "haptics"

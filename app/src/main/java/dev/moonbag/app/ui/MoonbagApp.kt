@@ -43,6 +43,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.moonbag.app.MainViewModel
 import dev.moonbag.app.R
+import dev.moonbag.app.ui.board.BoardScreen
+import dev.moonbag.app.ui.tutorial.TutorialScreen
 import dev.moonbag.app.ui.market.CertificateDialog
 import dev.moonbag.app.ui.market.CoinDetailScreen
 import dev.moonbag.app.ui.market.CreateCoinScreen
@@ -66,14 +68,18 @@ fun MoonbagApp(viewModel: MainViewModel) {
     val offline by viewModel.offline.collectAsStateWithLifecycle()
     val haptics by viewModel.haptics.collectAsStateWithLifecycle()
     val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
+    val tutorialDone by viewModel.tutorialDone.collectAsStateWithLifecycle()
 
     var tabIndex by rememberSaveable { mutableIntStateOf(0) }
     // null = tabs, "create" = new-coin form, "coin:<id>" = coin page
-    var overlay by rememberSaveable { mutableStateOf<String?>(null) }
+    var overlay by rememberSaveable { mutableStateOf<String?>(if (viewModel.tutorialDone.value) null else "tutorial") }
     var certificateId by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbar = remember { SnackbarHostState() }
 
-    BackHandler(enabled = overlay != null) { overlay = null }
+    BackHandler(enabled = overlay != null) {
+        if (overlay == "tutorial") viewModel.finishTutorial()
+        overlay = null
+    }
 
     AnimatedContent(
         targetState = overlay,
@@ -101,6 +107,10 @@ fun MoonbagApp(viewModel: MainViewModel) {
                     certificateId = id
                 },
             )
+        } else if (screen == "tutorial") {
+            TutorialScreen(onFinish = { viewModel.finishTutorial(); overlay = null })
+        } else if (screen == "board") {
+            BoardScreen(state = state, onBack = { overlay = null })
         } else if (screen != null && screen.startsWith("coin:")) {
             val coinId = screen.removePrefix("coin:")
             CoinDetailScreen(
@@ -113,6 +123,10 @@ fun MoonbagApp(viewModel: MainViewModel) {
                 onCertificate = { certificateId = coinId },
                 onStake = { amount -> viewModel.stake(coinId, amount) },
                 onUnstake = { amount -> viewModel.unstake(coinId, amount) },
+                onPlaceOrder = { type, trigger, amount -> viewModel.placeOrder(coinId, type, trigger, amount) },
+                onCancelOrder = viewModel::cancelOrder,
+                onMarketing = { tier -> viewModel.startMarketing(coinId, tier) },
+                onBurn = { amount -> viewModel.burn(coinId, amount) },
             )
         } else {
             Scaffold(
@@ -152,6 +166,8 @@ fun MoonbagApp(viewModel: MainViewModel) {
                             state = state,
                             onOpenCoin = { overlay = "coin:$it" },
                             onGoMarket = { tabIndex = Tab.MARKET.ordinal },
+                            onOpenBoard = { overlay = "board" },
+                            onCancelOrder = viewModel::cancelOrder,
                         )
                         Tab.MINE -> MineScreen(
                             state = state,
@@ -172,6 +188,7 @@ fun MoonbagApp(viewModel: MainViewModel) {
                             onDynamicColor = viewModel::setDynamicColor,
                             onHaptics = viewModel::setHaptics,
                             onReset = viewModel::resetGame,
+                            onOpenTutorial = { overlay = "tutorial" },
                         )
                     }
                 }

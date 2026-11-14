@@ -5,6 +5,9 @@ package dev.moonbag.app.ui.portfolio
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -38,6 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.moonbag.app.R
 import dev.moonbag.app.game.GameState
+import dev.moonbag.app.game.Rivals
+import dev.moonbag.app.ui.market.OrderRow
 import dev.moonbag.app.game.TradeSide
 import dev.moonbag.app.ui.components.AllocationBar
 import dev.moonbag.app.ui.components.ChangeChip
@@ -52,7 +57,13 @@ import dev.moonbag.app.ui.formatUsd
 import dev.moonbag.app.ui.theme.MarketColors
 
 @Composable
-fun PortfolioScreen(state: GameState, onOpenCoin: (String) -> Unit, onGoMarket: () -> Unit) {
+fun PortfolioScreen(
+    state: GameState,
+    onOpenCoin: (String) -> Unit,
+    onGoMarket: () -> Unit,
+    onOpenBoard: () -> Unit,
+    onCancelOrder: (Long) -> Unit,
+) {
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val net = state.netWorth()
     val profit = state.totalProfit()
@@ -106,6 +117,51 @@ fun PortfolioScreen(state: GameState, onOpenCoin: (String) -> Unit, onGoMarket: 
                             color = if (up) MarketColors.up() else MarketColors.down(),
                             modifier = Modifier.fillMaxWidth().height(110.dp),
                         )
+                    }
+                }
+            }
+
+            item(key = "rank") {
+                val rank = Rivals.rank(state, System.currentTimeMillis())
+                Card(
+                    onClick = onOpenBoard,
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.EmojiEvents, contentDescription = null)
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text(
+                                stringResource(R.string.rank_title, rank, Rivals.all.size + 1),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(stringResource(R.string.rank_open), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+
+            if (state.orders.isNotEmpty()) {
+                item(key = "orders-title") {
+                    Text(
+                        stringResource(R.string.orders),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                items(state.orders, key = { "o-" + it.id }) { order ->
+                    val coin = state.coin(order.coinId) ?: return@items
+                    Card(
+                        onClick = { onOpenCoin(coin.id) },
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Box(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+                            OrderRow(order, coin, onCancel = { onCancelOrder(order.id) })
+                        }
                     }
                 }
             }

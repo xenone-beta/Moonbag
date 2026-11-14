@@ -25,6 +25,13 @@ your phone, and all money is play money. No internet permission, no accounts, no
   while, with a banner on the Market tab.
 - **NFT**: three collections drawn in the app (Pixel Critters, Glow Orbs, Moon Rocks). Minting gives a random
   rarity, selling costs 2.5%, and on average minting returns less than it costs.
+- **Orders**: limit buys (the money is reserved), limit sells and stop-losses. They fire by themselves,
+  also while the app is closed, and fill at the price of that moment.
+- **Manage your coin**: marketing campaigns (three sizes, with a chance of a sell-off when the hype ends)
+  and token burns (gone for good, with a short burst of hype).
+- **Leaderboard**: 12 invented traders with their own growth and ups and downs. They are not real people;
+  their capital is a fixed function of the days since your game began.
+- **Tutorial**: shown on first launch and available from Settings.
 - **Offline**: the market keeps moving while the app is closed, and the auto-miner keeps earning for as
   long as the offline vault allows.
 - A home screen widget with your portfolio (as of the last time the app was closed).

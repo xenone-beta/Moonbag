@@ -29,6 +29,8 @@ data class CustomCoin(
     val serial: Int,
     val createdAt: Long,
     val imageFile: String? = null,
+    /** Coins of this kind you have destroyed. */
+    val burned: Double = 0.0,
 ) {
     fun toDef(): CoinDef = CoinDef(
         id = id,
@@ -37,7 +39,7 @@ data class CustomCoin(
         icon = icon,
         color = color,
         startPrice = style.startPrice,
-        supply = SUPPLY,
+        supply = (SUPPLY - burned).coerceAtLeast(1.0),
         volatility = style.volatility,
         jumpChance = style.jumpChance,
         rugChance = style.rugChance,

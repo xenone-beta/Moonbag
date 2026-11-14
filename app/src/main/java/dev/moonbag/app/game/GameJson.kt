@@ -21,6 +21,44 @@ object GameJson {
             .put("coinsListed", state.coinsListed)
             .put("granted", state.granted)
             .put("stakingEarned", state.stakingEarned)
+            .put("startedAt", state.startedAt)
+            .put("nextOrderId", state.nextOrderId)
+            .put(
+                "orders",
+                JSONArray().also { a ->
+                    state.orders.forEach { o ->
+                        a.put(
+                            JSONObject()
+                                .put("id", o.id).put("coin", o.coinId).put("type", o.type.name)
+                                .put("trigger", o.trigger).put("amount", o.amount).put("createdAt", o.createdAt),
+                        )
+                    }
+                },
+            )
+            .put(
+                "orderFills",
+                JSONArray().also { a ->
+                    state.orderFills.forEach { f ->
+                        a.put(
+                            JSONObject()
+                                .put("time", f.time).put("coin", f.coinId).put("type", f.type.name)
+                                .put("price", f.price).put("amount", f.amount),
+                        )
+                    }
+                },
+            )
+            .put(
+                "campaigns",
+                JSONArray().also { a ->
+                    state.campaigns.forEach { c ->
+                        a.put(
+                            JSONObject()
+                                .put("coin", c.coinId).put("kind", c.kind.name).put("strength", c.strength)
+                                .put("left", c.ticksLeft).put("total", c.totalTicks),
+                        )
+                    }
+                },
+            )
             .put("nextNftId", state.nextNftId)
             .put(
                 "activeEvent",
@@ -50,7 +88,7 @@ object GameJson {
                             JSONObject()
                                 .put("id", c.id).put("symbol", c.symbol).put("name", c.name)
                                 .put("icon", c.icon).put("imageFile", c.imageFile ?: "").put("color", c.color).put("style", c.style.name)
-                                .put("serial", c.serial).put("createdAt", c.createdAt),
+                                .put("serial", c.serial).put("createdAt", c.createdAt).put("burned", c.burned),
                         )
                     }
                 },
@@ -123,6 +161,7 @@ object GameJson {
                 serial = o.optInt("serial"),
                 createdAt = o.optLong("createdAt"),
                 imageFile = o.optString("imageFile", "").ifBlank { null },
+                burned = o.optDouble("burned", 0.0).takeIf { it.isFinite() && it >= 0 } ?: 0.0,
             )
         }
         val coinDefs = Coins.all + customCoins.map { it.toDef() }
@@ -182,6 +221,37 @@ object GameJson {
             nftHistory[col.id] = readDoubles(savedNftHistory.optJSONArray(col.id))
                 .filter { it.isFinite() && it > 0 }.ifEmpty { listOf(floor) }
         }
+        val orders = ArrayList<Order>()
+        val orderArray = root.optJSONArray("orders") ?: JSONArray()
+        for (i in 0 until orderArray.length()) {
+            val o = orderArray.getJSONObject(i)
+            val type = runCatching { OrderType.valueOf(o.getString("type")) }.getOrNull() ?: continue
+            val coin = o.optString("coin")
+            val trigger = o.optDouble("trigger", 0.0)
+            val amount = o.optDouble("amount", 0.0)
+            if (coin !in coinIds || !trigger.isFinite() || trigger <= 0 || !amount.isFinite() || amount <= 0) continue
+            orders += Order(o.optLong("id"), coin, type, trigger, amount, o.optLong("createdAt"))
+        }
+        val fills = ArrayList<OrderFill>()
+        val fillArray = root.optJSONArray("orderFills") ?: JSONArray()
+        for (i in 0 until fillArray.length()) {
+            val o = fillArray.getJSONObject(i)
+            val type = runCatching { OrderType.valueOf(o.getString("type")) }.getOrNull() ?: continue
+            val coin = o.optString("coin")
+            if (coin !in coinIds) continue
+            fills += OrderFill(o.optLong("time"), coin, type, o.optDouble("price"), o.optDouble("amount"))
+        }
+        val campaigns = ArrayList<Campaign>()
+        val campaignArray = root.optJSONArray("campaigns") ?: JSONArray()
+        for (i in 0 until campaignArray.length()) {
+            val o = campaignArray.getJSONObject(i)
+            val kind = runCatching { CampaignKind.valueOf(o.getString("kind")) }.getOrNull() ?: continue
+            val coin = o.optString("coin")
+            val left = o.optDouble("left", 0.0)
+            val total = o.optDouble("total", 0.0)
+            if (coin !in customCoins.map { it.id } || !(left > 0) || !(total > 0)) continue
+            campaigns += Campaign(coin, kind, o.optDouble("strength", 0.0).takeIf { it.isFinite() } ?: 0.0, left.coerceAtMost(total), total)
+        }
         val event = root.optJSONObject("activeEvent")?.let { o ->
             val kind = runCatching { GlobalEventKind.valueOf(o.getString("kind")) }.getOrNull() ?: return@let null
             val total = o.optDouble("total", 0.0)
@@ -235,6 +305,11 @@ object GameJson {
             nfts = nfts,
             nftFloors = nftFloors,
             nftHistory = nftHistory,
+            orders = orders,
+            nextOrderId = maxOf(root.optLong("nextOrderId", 1L), (orders.maxOfOrNull { it.id } ?: 0L) + 1),
+            orderFills = fills,
+            campaigns = campaigns,
+            startedAt = root.optLong("startedAt", 0L).takeIf { it > 0 } ?: root.optLong("savedAt", 0L),
             nextNftId = maxOf(root.optLong("nextNftId", 1L), (nfts.maxOfOrNull { it.id } ?: 0L) + 1),
         )
         return if (state.netHistory.isEmpty()) state.copy(netHistory = listOf(state.netWorth())) else state

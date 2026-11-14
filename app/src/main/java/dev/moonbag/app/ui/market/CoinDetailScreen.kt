@@ -54,6 +54,9 @@ import dev.moonbag.app.R
 import dev.moonbag.app.game.CoinKind
 import dev.moonbag.app.game.GameState
 import dev.moonbag.app.game.Indicators
+import dev.moonbag.app.game.MarketingTier
+import dev.moonbag.app.game.OrderResult
+import dev.moonbag.app.game.OrderType
 import dev.moonbag.app.game.TradeResult
 import dev.moonbag.app.game.TradeSide
 import dev.moonbag.app.ui.components.ChangeChip
@@ -93,6 +96,10 @@ fun CoinDetailScreen(
     onCertificate: () -> Unit,
     onStake: (Double) -> Boolean,
     onUnstake: (Double) -> Boolean,
+    onPlaceOrder: (OrderType, Double, Double) -> OrderResult,
+    onCancelOrder: (Long) -> Unit,
+    onMarketing: (MarketingTier) -> Unit,
+    onBurn: (Double) -> Boolean,
 ) {
     val coin = state.coin(coinId) ?: return
     val scope = rememberCoroutineScope()
@@ -104,6 +111,8 @@ fun CoinDetailScreen(
     var showRsi by rememberSaveable { mutableStateOf(false) }
     var sheetSide by remember { mutableStateOf<TradeSide?>(null) }
     var stakeDialog by remember { mutableStateOf<Boolean?>(null) }
+    var orderSheet by remember { mutableStateOf(false) }
+    var burnDialog by remember { mutableStateOf(false) }
 
     val price = state.price(coinId)
     val holding = state.holdings[coinId]
@@ -324,6 +333,18 @@ fun CoinDetailScreen(
                 }
             }
 
+            OrdersCard(
+                coin = coin,
+                orders = state.orders.filter { it.coinId == coinId },
+                fills = state.orderFills.filter { it.coinId == coinId },
+                onNew = { orderSheet = true },
+                onCancel = onCancelOrder,
+            )
+
+            if (coin.kind == CoinKind.CUSTOM) {
+                ManageCoinCard(coin, state, onMarketing = onMarketing, onBurn = { burnDialog = true })
+            }
+
             if (holding != null) {
                 StakingCard(
                     coin = coin,
@@ -417,6 +438,26 @@ fun CoinDetailScreen(
             }
             Spacer(Modifier.height(8.dp))
         }
+    }
+
+    if (orderSheet) {
+        OrderSheet(
+            coin = coin,
+            price = price,
+            cash = state.cash,
+            holding = holding,
+            onDismiss = { orderSheet = false },
+            onPlace = onPlaceOrder,
+        )
+    }
+
+    if (burnDialog) {
+        BurnDialog(
+            coin = coin,
+            state = state,
+            onDismiss = { burnDialog = false },
+            onConfirm = { amount -> if (onBurn(amount)) burnDialog = false },
+        )
     }
 
     stakeDialog?.let { staking ->

@@ -10,7 +10,10 @@ import dev.moonbag.app.game.GameEngine
 import dev.moonbag.app.game.GameState
 import dev.moonbag.app.game.GameStore
 import dev.moonbag.app.game.ListingResult
+import dev.moonbag.app.game.MarketingTier
 import dev.moonbag.app.game.MintResult
+import dev.moonbag.app.game.OrderResult
+import dev.moonbag.app.game.OrderType
 import dev.moonbag.app.game.OfflineReport
 import dev.moonbag.app.game.PriceEngine
 import dev.moonbag.app.game.TapResult
@@ -41,6 +44,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _haptics = MutableStateFlow(store.haptics)
     val haptics: StateFlow<Boolean> = _haptics.asStateFlow()
+
+    private val _tutorialDone = MutableStateFlow(store.tutorialDone)
+    val tutorialDone: StateFlow<Boolean> = _tutorialDone.asStateFlow()
 
     private var loop: Job? = null
 
@@ -75,6 +81,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun buyUpgrade(kind: UpgradeKind): Boolean = engine.buyUpgrade(kind)
 
+    fun placeOrder(coinId: String, type: OrderType, trigger: Double, amount: Double): OrderResult =
+        engine.placeOrder(coinId, type, trigger, amount)
+
+    fun cancelOrder(orderId: Long) = engine.cancelOrder(orderId)
+
+    fun startMarketing(coinId: String, tier: MarketingTier): Boolean = engine.startMarketing(coinId, tier)
+
+    fun burn(coinId: String, amount: Double): Boolean = engine.burn(coinId, amount)
+
     fun buyFarm(index: Int): Boolean = engine.buyFarm(index)
 
     fun stake(coinId: String, amount: Double): Boolean = engine.stake(coinId, amount)
@@ -104,6 +119,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun dismissOffline() {
         _offline.value = null
+    }
+
+    fun finishTutorial() {
+        store.tutorialDone = true
+        _tutorialDone.value = true
     }
 
     fun setDynamicColor(value: Boolean) {

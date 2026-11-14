@@ -61,7 +61,8 @@ object PriceEngine {
             val anchor = ln(coin.startPrice)
             var logPrice = anchor + (ln(current) - anchor) * pull +
                 coin.beta * mood * MOOD_PUSH * dt +
-                (if (event != null) GlobalEvents.bias(event.kind, coin.kind) * EVENT_PUSH * dt else 0.0) +
+                (if (event != null) GlobalEvents.bias(event.kind, coin.kind) * EVENT_PUSH * minOf(dt, event.ticksLeft) else 0.0) +
+                CoinManagement.push(state.campaigns, coin.id, dt) * EVENT_PUSH +
                 coin.volatility * volFactor * spread * gaussian(random)
             if (event != null && event.kind == GlobalEventKind.FLASH_CRASH && event.justStarted) {
                 val drop = (0.04 + 0.03 * coin.risk) * if (coin.kind == CoinKind.MAJOR) 0.5 else 1.0
@@ -75,6 +76,14 @@ object PriceEngine {
                 val size = ((0.08 + random.nextDouble() * 0.12 * coin.risk) * coin.jumpScale).coerceAtMost(0.6)
                 eventLog = if (up) ln(1.0 + size) else ln(1.0 - size * 0.8)
                 eventKind = if (up) EventKind.PUMP else EventKind.DUMP
+                logPrice += eventLog
+            }
+            val hypeEnds = state.campaigns.any {
+                it.coinId == coin.id && it.kind == CampaignKind.MARKETING && it.ticksLeft - dt <= 0.0
+            }
+            if (hypeEnds && random.nextDouble() < CoinManagement.BACKLASH_CHANCE) {
+                eventLog = ln(1.0 - (0.10 + random.nextDouble() * 0.15))
+                eventKind = EventKind.DUMP
                 logPrice += eventLog
             }
             if (coin.rugChance > 0 && random.nextDouble() < (coin.rugChance * dt).coerceAtMost(0.5)) {
@@ -99,9 +108,11 @@ object PriceEngine {
             history = history,
             sentiment = mood,
             activeEvent = nextEvent,
+            campaigns = state.campaigns.map { it.copy(ticksLeft = it.ticksLeft - dt) }.filter { it.ticksLeft > 0.0 },
             events = if (events.isEmpty()) state.events else (events + state.events).take(MAX_EVENTS),
         )
-        return moved.copy(netHistory = (state.netHistory + moved.netWorth()).takeLast(MAX_POINTS))
+        val settled = Orders.process(moved, now)
+        return settled.copy(netHistory = (state.netHistory + settled.netWorth()).takeLast(MAX_POINTS))
     }
 
     /** Simulates [elapsedSeconds] of closed-app time in at most [MAX_STEPS] big steps. */

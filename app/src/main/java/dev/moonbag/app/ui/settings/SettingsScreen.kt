@@ -53,6 +53,7 @@ fun SettingsScreen(
     onDynamicColor: (Boolean) -> Unit,
     onHaptics: (Boolean) -> Unit,
     onReset: () -> Unit,
+    onOpenTutorial: () -> Unit,
 ) {
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var confirmReset by remember { mutableStateOf(false) }
@@ -124,6 +125,11 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            OutlinedButton(
+                onClick = onOpenTutorial,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) { Text(stringResource(R.string.how_to_play)) }
 
             OutlinedButton(
                 onClick = { confirmReset = true },

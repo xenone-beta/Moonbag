@@ -70,6 +70,12 @@ data class GameState(
     val nftFloors: Map<String, Double> = emptyMap(),
     val nftHistory: Map<String, List<Double>> = emptyMap(),
     val nextNftId: Long = 1L,
+    val orders: List<Order> = emptyList(),
+    val nextOrderId: Long = 1L,
+    val orderFills: List<OrderFill> = emptyList(),
+    val campaigns: List<Campaign> = emptyList(),
+    /** When this game began; the rival leaderboard is measured from here. */
+    val startedAt: Long = 0L,
 ) {
     /** Built-in coins followed by the ones you created. */
     val allCoins: List<CoinDef> get() = Coins.all + customCoins.map { it.toDef() }
@@ -82,7 +88,10 @@ data class GameState(
 
     fun nftValue(): Double = nfts.sumOf { Nfts.value(this, it) }
 
-    fun netWorth(): Double = cash + holdingsValue() + nftValue()
+    /** Dollars held back by open limit buys. */
+    fun reservedCash(): Double = orders.filter { it.type == OrderType.LIMIT_BUY }.sumOf { it.amount }
+
+    fun netWorth(): Double = cash + reservedCash() + holdingsValue() + nftValue()
 
     /** Profit or loss against everything ever earned by clicking. */
     fun totalProfit(): Double = netWorth() - lifetimeEarned - granted
@@ -105,12 +114,13 @@ data class GameState(
                 history = Coins.all.associate { it.id to listOf(it.startPrice) },
                 netHistory = listOf(STARTING_CASH),
                 savedAt = now,
+                startedAt = now,
                 nftFloors = Nfts.collections.associate { it.id to it.mintPrice },
                 nftHistory = Nfts.collections.associate { it.id to listOf(it.mintPrice) },
             )
             repeat(120) { state = PriceEngine.advance(state, 1.0, now, random, recordEvents = false) }
             // Drop the pre-run's bookkeeping: the game starts from what the charts show now.
-            return state.copy(events = emptyList(), activeEvent = null, netHistory = List(state.netHistory.size) { STARTING_CASH })
+            return state.copy(events = emptyList(), activeEvent = null, campaigns = emptyList(), netHistory = List(state.netHistory.size) { STARTING_CASH })
         }
     }
 }
