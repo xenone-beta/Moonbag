@@ -8,15 +8,26 @@ your phone, and all money is play money. No internet permission, no accounts, no
 - **Market**: 10 major coins (BTC, ETH, SOL and others) and 12 invented meme coins with live charts,
   filters and market news (pumps, dumps and the occasional rug pull). All prices are simulated; the major
   coins only borrow real names and are not market data.
-- **Create your own coin**: pay a $2,000 listing fee, pick a name, ticker, icon, colour and behaviour, and get a
+- **Charts**: line or candlestick view with SMA, EMA and RSI indicators and a price grid; drag to inspect.
+- **Create your own coin**: pay a $2,000 listing fee, pick a name, ticker, icon (or a photo from your gallery),
+  colour and behaviour, and get a
   numbered listing certificate plus a founder allocation. Your coins live on a thin market: your own trades
   move the price (a constant-product pool), so a quick buy-and-sell always costs you.
 - **Trade**: buy and sell with a 0.5% fee, see your average buy price and profit per coin.
 - **Portfolio**: net worth chart, allocation bar, holdings and trade history.
 - **Mine**: you start with $0. Tap the moon to earn your first dollars, then buy upgrades
   (stronger taps, an auto-miner, lucky crits, an offline vault).
+- **Mining farms**: GPU rigs, mining farms, data centers and quantum racks give passive income that
+  keeps growing in price as you buy more.
+- **Staking**: lock coins to earn more of the same coin (0.4%, 0.8% or 1.2% per hour depending on the coin),
+  also while the app is closed (up to 12 hours). Staked coins cannot be sold until unstaked.
+- **Market events**: bull runs, bear markets, meme seasons and flash crashes move the whole market for a
+  while, with a banner on the Market tab.
+- **NFT**: three collections drawn in the app (Pixel Critters, Glow Orbs, Moon Rocks). Minting gives a random
+  rarity, selling costs 2.5%, and on average minting returns less than it costs.
 - **Offline**: the market keeps moving while the app is closed, and the auto-miner keeps earning for as
   long as the offline vault allows.
+- A home screen widget with your portfolio (as of the last time the app was closed).
 - Material 3 with dynamic colors (Material You), light and dark theme, English and Russian.
 
 ## How the market works

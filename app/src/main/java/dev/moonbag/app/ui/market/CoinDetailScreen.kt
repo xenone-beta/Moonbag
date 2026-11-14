@@ -3,6 +3,7 @@
 package dev.moonbag.app.ui.market
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,12 +53,16 @@ import androidx.compose.ui.unit.dp
 import dev.moonbag.app.R
 import dev.moonbag.app.game.CoinKind
 import dev.moonbag.app.game.GameState
+import dev.moonbag.app.game.Indicators
 import dev.moonbag.app.game.TradeResult
 import dev.moonbag.app.game.TradeSide
 import dev.moonbag.app.ui.components.ChangeChip
 import dev.moonbag.app.ui.components.CoinAvatar
 import dev.moonbag.app.ui.components.FlashText
+import dev.moonbag.app.ui.components.CandleChart
+import dev.moonbag.app.ui.components.ChartOverlay
 import dev.moonbag.app.ui.components.LineChart
+import dev.moonbag.app.ui.components.RsiPanel
 import dev.moonbag.app.ui.components.Stat
 import dev.moonbag.app.ui.formatAmount
 import dev.moonbag.app.ui.formatCompact
@@ -69,7 +74,13 @@ import dev.moonbag.app.ui.formatUsd
 import dev.moonbag.app.ui.theme.MarketColors
 import kotlinx.coroutines.launch
 
-private val RANGES = listOf(30 to R.string.range_1m, 150 to R.string.range_5m, 720 to R.string.range_all)
+private data class Range(val points: Int, val label: Int, val perCandle: Int)
+
+private val RANGES = listOf(
+    Range(30, R.string.range_1m, 3),
+    Range(150, R.string.range_5m, 6),
+    Range(720, R.string.range_all, 24),
+)
 
 @Composable
 fun CoinDetailScreen(
@@ -80,19 +91,32 @@ fun CoinDetailScreen(
     onBuy: (Double) -> TradeResult,
     onSell: (Double) -> TradeResult,
     onCertificate: () -> Unit,
+    onStake: (Double) -> Boolean,
+    onUnstake: (Double) -> Boolean,
 ) {
     val coin = state.coin(coinId) ?: return
     val scope = rememberCoroutineScope()
     var rangeIndex by rememberSaveable { mutableIntStateOf(1) }
     var scrub by remember { mutableStateOf<Int?>(null) }
+    var candleMode by rememberSaveable { mutableStateOf(false) }
+    var showSma by rememberSaveable { mutableStateOf(false) }
+    var showEma by rememberSaveable { mutableStateOf(false) }
+    var showRsi by rememberSaveable { mutableStateOf(false) }
     var sheetSide by remember { mutableStateOf<TradeSide?>(null) }
+    var stakeDialog by remember { mutableStateOf<Boolean?>(null) }
 
     val price = state.price(coinId)
     val holding = state.holdings[coinId]
-    val points = state.history[coinId].orEmpty().takeLast(RANGES[rangeIndex].first)
-    val scrubbed = scrub?.let { points.getOrNull(it) }
+    val range = RANGES[rangeIndex]
+    val points = state.history[coinId].orEmpty().takeLast(range.points)
+    val candles = Indicators.candles(points, range.perCandle)
+    val series = if (candleMode) candles.map { it.close } else points
+    val scrubbed = scrub?.let { series.getOrNull(it) }
     val shownPrice = scrubbed ?: price
-    val change = if (points.isNotEmpty() && points.first() > 0) shownPrice / points.first() - 1.0 else 0.0
+    val change = if (series.isNotEmpty() && series.first() > 0) shownPrice / series.first() - 1.0 else 0.0
+    val smaOverlay = if (showSma) ChartOverlay(Indicators.sma(series, (series.size / 4).coerceIn(3, 10)), MaterialTheme.colorScheme.tertiary) else null
+    val emaOverlay = if (showEma) ChartOverlay(Indicators.ema(series, (series.size / 3).coerceIn(3, 20)), MaterialTheme.colorScheme.secondary) else null
+    val overlays = listOfNotNull(smaOverlay, emaOverlay)
     val chartColor = MarketColors.forChange(if (points.size > 1) points.last() / points.first() - 1.0 else 0.0)
 
     Scaffold(
@@ -139,7 +163,7 @@ fun CoinDetailScreen(
             ) {
                 FilledTonalButton(
                     onClick = { sheetSide = TradeSide.SELL },
-                    enabled = holding != null,
+                    enabled = holding != null && holding.liquid > 0.0,
                     modifier = Modifier.weight(1f).height(52.dp),
                 ) { Text(stringResource(R.string.sell), style = MaterialTheme.typography.titleMedium) }
                 Button(
@@ -175,28 +199,93 @@ fun CoinDetailScreen(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ChangeChip(change)
                     Text(
-                        stringResource(R.string.in_range, stringResource(RANGES[rangeIndex].second)),
+                        stringResource(R.string.in_range, stringResource(range.label)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
 
-            LineChart(
-                points = points,
-                color = chartColor,
-                onScrub = { scrub = it },
-                modifier = Modifier.fillMaxWidth().height(220.dp),
-            )
+            if (candleMode) {
+                val candle = scrub?.let { candles.getOrNull(it) } ?: candles.lastOrNull()
+                if (candle != null) {
+                    Text(
+                        stringResource(
+                            R.string.ohlc,
+                            formatPrice(candle.open),
+                            formatPrice(candle.high),
+                            formatPrice(candle.low),
+                            formatPrice(candle.close),
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                CandleChart(
+                    candles = candles,
+                    up = MarketColors.up(),
+                    down = MarketColors.down(),
+                    onScrub = { scrub = it },
+                    overlays = overlays,
+                    modifier = Modifier.fillMaxWidth().height(240.dp),
+                )
+            } else {
+                LineChart(
+                    points = points,
+                    color = chartColor,
+                    onScrub = { scrub = it },
+                    overlays = overlays,
+                    grid = true,
+                    modifier = Modifier.fillMaxWidth().height(240.dp),
+                )
+            }
+
+            if (showRsi) {
+                val rsiSeries = Indicators.rsi(series, (series.size / 4).coerceIn(5, 14))
+                val last = rsiSeries.lastOrNull { it != null }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(
+                        stringResource(R.string.ind_rsi),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (last != null) {
+                        Text(
+                            stringResource(R.string.rsi_value, last.toInt()),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+                RsiPanel(rsiSeries, MaterialTheme.colorScheme.primary, Modifier.fillMaxWidth().height(64.dp))
+            }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                RANGES.forEachIndexed { index, (_, label) ->
+                RANGES.forEachIndexed { index, r ->
                     FilterChip(
                         selected = rangeIndex == index,
                         onClick = { rangeIndex = index; scrub = null },
-                        label = { Text(stringResource(label)) },
+                        label = { Text(stringResource(r.label)) },
                     )
                 }
+            }
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(
+                    selected = !candleMode,
+                    onClick = { candleMode = false; scrub = null },
+                    label = { Text(stringResource(R.string.chart_line)) },
+                )
+                FilterChip(
+                    selected = candleMode,
+                    onClick = { candleMode = true; scrub = null },
+                    label = { Text(stringResource(R.string.chart_candles)) },
+                )
+                FilterChip(selected = showSma, onClick = { showSma = !showSma }, label = { Text(stringResource(R.string.ind_sma)) })
+                FilterChip(selected = showEma, onClick = { showEma = !showEma }, label = { Text(stringResource(R.string.ind_ema)) })
+                FilterChip(selected = showRsi, onClick = { showRsi = !showRsi }, label = { Text(stringResource(R.string.ind_rsi)) })
             }
 
             if (holding != null) {
@@ -233,6 +322,15 @@ fun CoinDetailScreen(
                         }
                     }
                 }
+            }
+
+            if (holding != null) {
+                StakingCard(
+                    coin = coin,
+                    holding = holding,
+                    onStake = { stakeDialog = true },
+                    onUnstake = { stakeDialog = false },
+                )
             }
 
             Card(
@@ -318,6 +416,24 @@ fun CoinDetailScreen(
                 }
             }
             Spacer(Modifier.height(8.dp))
+        }
+    }
+
+    stakeDialog?.let { staking ->
+        val h = holding
+        if (h != null) {
+            StakeDialog(
+                coin = coin,
+                staking = staking,
+                maxAmount = if (staking) h.liquid else h.staked,
+                onDismiss = { stakeDialog = null },
+                onConfirm = { amount ->
+                    val ok = if (staking) onStake(amount) else onUnstake(amount)
+                    if (ok) stakeDialog = null
+                },
+            )
+        } else {
+            stakeDialog = null
         }
     }
 

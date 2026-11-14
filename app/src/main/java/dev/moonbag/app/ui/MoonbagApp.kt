@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Diamond
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Bolt
+import androidx.compose.material.icons.outlined.Diamond
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.ShowChart
 import androidx.compose.material3.AlertDialog
@@ -46,12 +48,14 @@ import dev.moonbag.app.ui.market.CoinDetailScreen
 import dev.moonbag.app.ui.market.CreateCoinScreen
 import dev.moonbag.app.ui.market.MarketScreen
 import dev.moonbag.app.ui.mine.MineScreen
+import dev.moonbag.app.ui.nft.NftScreen
 import dev.moonbag.app.ui.portfolio.PortfolioScreen
 import dev.moonbag.app.ui.settings.SettingsScreen
 
 private enum class Tab(val label: Int, val on: ImageVector, val off: ImageVector) {
     MARKET(R.string.tab_market, Icons.Filled.ShowChart, Icons.Outlined.ShowChart),
     PORTFOLIO(R.string.tab_portfolio, Icons.Filled.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet),
+    NFT(R.string.tab_nft, Icons.Filled.Diamond, Icons.Outlined.Diamond),
     MINE(R.string.tab_mine, Icons.Filled.Bolt, Icons.Outlined.Bolt),
     SETTINGS(R.string.tab_settings, Icons.Filled.Settings, Icons.Outlined.Settings),
 }
@@ -89,8 +93,8 @@ fun MoonbagApp(viewModel: MainViewModel) {
             CreateCoinScreen(
                 state = state,
                 onBack = { overlay = null },
-                onCreate = { name, ticker, emoji, color, style ->
-                    viewModel.createCoin(name, ticker, emoji, color, style)
+                onCreate = { name, ticker, icon, color, style, imageFile ->
+                    viewModel.createCoin(name, ticker, icon, color, style, imageFile)
                 },
                 onListed = { id ->
                     overlay = "coin:$id"
@@ -107,6 +111,8 @@ fun MoonbagApp(viewModel: MainViewModel) {
                 onBuy = { usd -> viewModel.buy(coinId, usd) },
                 onSell = { amount -> viewModel.sell(coinId, amount) },
                 onCertificate = { certificateId = coinId },
+                onStake = { amount -> viewModel.stake(coinId, amount) },
+                onUnstake = { amount -> viewModel.unstake(coinId, amount) },
             )
         } else {
             Scaffold(
@@ -152,6 +158,12 @@ fun MoonbagApp(viewModel: MainViewModel) {
                             haptics = haptics,
                             onTap = viewModel::tap,
                             onBuyUpgrade = viewModel::buyUpgrade,
+                            onBuyFarm = viewModel::buyFarm,
+                        )
+                        Tab.NFT -> NftScreen(
+                            state = state,
+                            onMint = viewModel::mintNft,
+                            onSell = viewModel::sellNft,
                         )
                         Tab.SETTINGS -> SettingsScreen(
                             state = state,

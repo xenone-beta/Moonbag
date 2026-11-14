@@ -11,7 +11,8 @@ data class CoinDef(
     val id: String,
     val symbol: String,
     val name: String,
-    val emoji: String,
+    /** "glyph:X" draws the text X; anything else is a key of the icon set (see CoinIcons). */
+    val icon: String,
     /** ARGB colour of the avatar and chart accents. */
     val color: Long,
     /** Starting price in play dollars. It is also the long-run level the price drifts back to. */
@@ -35,6 +36,8 @@ data class CoinDef(
     /** Listing certificate number of a coin you created; 0 for built-in coins. */
     val serial: Int = 0,
     val createdAt: Long = 0L,
+    /** File name of a photo chosen for a coin you created. */
+    val imageFile: String? = null,
 )
 
 object Coins {
@@ -43,7 +46,7 @@ object Coins {
         id: String, symbol: String, name: String, glyph: String, color: Long, price: Double, supply: Double,
         vol: Double, beta: Double, risk: Int,
     ) = CoinDef(
-        id, symbol, name, glyph, color, price, supply, vol, 0.0004, 0.0, beta, risk,
+        id, symbol, name, "glyph:" + glyph, color, price, supply, vol, 0.0004, 0.0, beta, risk,
         kind = CoinKind.MAJOR, jumpScale = 0.25,
     )
 
@@ -53,7 +56,7 @@ object Coins {
         major("bnb", "BNB", "BNB", "◆", 0xFFF3BA2F, 620.0, 145e6, 0.0030, 0.20, 1),
         major("sol", "SOL", "Solana", "◎", 0xFF9945FF, 180.0, 480e6, 0.0048, 0.30, 2),
         major("xrp", "XRP", "XRP", "✕", 0xFF8EA0B4, 2.3, 58e9, 0.0045, 0.25, 2),
-        major("ton", "TON", "Toncoin", "🔷", 0xFF0098EA, 5.5, 2.5e9, 0.0045, 0.25, 2),
+        major("ton", "TON", "Toncoin", "◇", 0xFF0098EA, 5.5, 2.5e9, 0.0045, 0.25, 2),
         major("ada", "ADA", "Cardano", "₳", 0xFF3468D1, 0.8, 36e9, 0.0048, 0.25, 2),
         major("doge", "DOGE", "Dogecoin", "Ð", 0xFFC2A633, 0.35, 148e9, 0.0065, 0.40, 2),
         major("ltc", "LTC", "Litecoin", "Ł", 0xFF9AA6B2, 90.0, 75e6, 0.0036, 0.20, 1),
@@ -61,18 +64,18 @@ object Coins {
     )
 
     val memes: List<CoinDef> = listOf(
-        CoinDef("woof", "WOOF", "Woofcoin", "🐶", 0xFFE0A15B, 0.0000421, 420e12, 0.012, 0.0015, 0.0, 1.2, 2),
-        CoinDef("kekw", "KEKW", "Kekwave", "😂", 0xFFF2C94C, 0.0183, 8.9e9, 0.010, 0.0010, 0.0, 1.0, 2),
-        CoinDef("frogg", "FRGG", "Frogge", "🐸", 0xFF4CAF50, 0.00276, 69e9, 0.014, 0.0020, 0.00003, 1.4, 3),
-        CoinDef("giga", "GIGA", "Gigachad", "🗿", 0xFF90A4AE, 0.412, 1e9, 0.008, 0.0008, 0.0, 0.9, 1),
-        CoinDef("bnna", "BNNA", "Bananacoin", "🍌", 0xFFFFD54F, 1.27, 500e6, 0.009, 0.0010, 0.0, 1.0, 1),
-        CoinDef("pzza", "PZZA", "Pizzapunk", "🍕", 0xFFEF6C00, 0.0912, 2e9, 0.011, 0.0012, 0.0, 1.1, 2),
-        CoinDef("capy", "CAPY", "Capybara", "🦫", 0xFF8D6E63, 0.0567, 3e9, 0.006, 0.0005, 0.0, 0.7, 1),
-        CoinDef("rham", "RHAM", "Rocket Hamster", "🐹", 0xFFFF8A65, 0.000318, 90e12, 0.020, 0.0030, 0.00005, 1.6, 3),
-        CoinDef("nyan", "NYAN", "Sushi Cat", "🐱", 0xFFEC407A, 0.0034, 12e9, 0.013, 0.0018, 0.00002, 1.3, 3),
-        CoinDef("dhnd", "DHND", "Diamond Hands", "💎", 0xFF4FC3F7, 3.84, 21e6, 0.007, 0.0007, 0.0, 0.8, 1),
-        CoinDef("yolo", "YOLO", "YOLO Inu", "🎰", 0xFFAB47BC, 0.00000917, 1e15, 0.026, 0.0040, 0.0001, 1.8, 4),
-        CoinDef("safe", "SAFE", "Totally Safe", "🛟", 0xFF26A69A, 0.00000052, 1e18, 0.030, 0.0050, 0.0002, 2.0, 4),
+        CoinDef("woof", "WOOF", "Woofcoin", "paw", 0xFFE0A15B, 0.0000421, 420e12, 0.012, 0.0015, 0.0, 1.2, 2),
+        CoinDef("kekw", "KEKW", "Kekwave", "smile", 0xFFF2C94C, 0.0183, 8.9e9, 0.010, 0.0010, 0.0, 1.0, 2),
+        CoinDef("frogg", "FRGG", "Frogge", "leaf", 0xFF4CAF50, 0.00276, 69e9, 0.014, 0.0020, 0.00003, 1.4, 3),
+        CoinDef("giga", "GIGA", "Gigachad", "brain", 0xFF90A4AE, 0.412, 1e9, 0.008, 0.0008, 0.0, 0.9, 1),
+        CoinDef("bnna", "BNNA", "Bananacoin", "sun", 0xFFFFD54F, 1.27, 500e6, 0.009, 0.0010, 0.0, 1.0, 1),
+        CoinDef("pzza", "PZZA", "Pizzapunk", "pizza", 0xFFEF6C00, 0.0912, 2e9, 0.011, 0.0012, 0.0, 1.1, 2),
+        CoinDef("capy", "CAPY", "Capybara", "paw", 0xFF8D6E63, 0.0567, 3e9, 0.006, 0.0005, 0.0, 0.7, 1),
+        CoinDef("rham", "RHAM", "Rocket Hamster", "rocket", 0xFFFF8A65, 0.000318, 90e12, 0.020, 0.0030, 0.00005, 1.6, 3),
+        CoinDef("nyan", "NYAN", "Sushi Cat", "star", 0xFFEC407A, 0.0034, 12e9, 0.013, 0.0018, 0.00002, 1.3, 3),
+        CoinDef("dhnd", "DHND", "Diamond Hands", "trophy", 0xFF4FC3F7, 3.84, 21e6, 0.007, 0.0007, 0.0, 0.8, 1),
+        CoinDef("yolo", "YOLO", "YOLO Inu", "dice", 0xFFAB47BC, 0.00000917, 1e15, 0.026, 0.0040, 0.0001, 1.8, 4),
+        CoinDef("safe", "SAFE", "Totally Safe", "shield", 0xFF26A69A, 0.00000052, 1e18, 0.030, 0.0050, 0.0002, 2.0, 4),
     )
 
     /** The built-in coins: majors first, then the memes. */

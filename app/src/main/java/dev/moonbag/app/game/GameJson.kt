@@ -20,6 +20,28 @@ object GameJson {
             .put("savedAt", state.savedAt)
             .put("coinsListed", state.coinsListed)
             .put("granted", state.granted)
+            .put("stakingEarned", state.stakingEarned)
+            .put("nextNftId", state.nextNftId)
+            .put(
+                "activeEvent",
+                state.activeEvent?.let {
+                    JSONObject().put("kind", it.kind.name).put("left", it.ticksLeft).put("total", it.totalTicks)
+                } ?: JSONObject.NULL,
+            )
+            .put("nftFloors", JSONObject().also { o -> state.nftFloors.forEach { (k, v) -> o.put(k, v) } })
+            .put("nftHistory", JSONObject().also { o -> state.nftHistory.forEach { (k, v) -> o.put(k, doubles(v)) } })
+            .put(
+                "nfts",
+                JSONArray().also { a ->
+                    state.nfts.forEach { n ->
+                        a.put(
+                            JSONObject()
+                                .put("id", n.id).put("collection", n.collection).put("seed", n.seed)
+                                .put("rarity", n.rarity.name).put("mintedAt", n.mintedAt).put("paid", n.paid),
+                        )
+                    }
+                },
+            )
             .put(
                 "customCoins",
                 JSONArray().also { a ->
@@ -27,7 +49,7 @@ object GameJson {
                         a.put(
                             JSONObject()
                                 .put("id", c.id).put("symbol", c.symbol).put("name", c.name)
-                                .put("emoji", c.emoji).put("color", c.color).put("style", c.style.name)
+                                .put("icon", c.icon).put("imageFile", c.imageFile ?: "").put("color", c.color).put("style", c.style.name)
                                 .put("serial", c.serial).put("createdAt", c.createdAt),
                         )
                     }
@@ -39,7 +61,8 @@ object GameJson {
                     .put("tap", state.upgrades.tap)
                     .put("auto", state.upgrades.auto)
                     .put("crit", state.upgrades.crit)
-                    .put("vault", state.upgrades.vault),
+                    .put("vault", state.upgrades.vault)
+                    .put("farms", JSONArray().also { a -> state.upgrades.farms.forEach { a.put(it) } }),
             )
             .put("prices", JSONObject().also { o -> state.prices.forEach { (k, v) -> o.put(k, v) } })
             .put("history", JSONObject().also { o -> state.history.forEach { (k, v) -> o.put(k, doubles(v)) } })
@@ -48,7 +71,7 @@ object GameJson {
                 "holdings",
                 JSONObject().also { o ->
                     state.holdings.forEach { (k, h) ->
-                        o.put(k, JSONObject().put("amount", h.amount).put("basis", h.costBasis))
+                        o.put(k, JSONObject().put("amount", h.amount).put("basis", h.costBasis).put("staked", h.staked))
                     }
                 },
             )
@@ -94,11 +117,12 @@ object GameJson {
                 id = id,
                 symbol = o.optString("symbol"),
                 name = o.optString("name"),
-                emoji = o.optString("emoji", "🪙"),
+                icon = o.optString("icon", "star").ifBlank { "star" },
                 color = o.optLong("color", 0xFF9E9E9E),
                 style = style,
                 serial = o.optInt("serial"),
                 createdAt = o.optLong("createdAt"),
+                imageFile = o.optString("imageFile", "").ifBlank { null },
             )
         }
         val coinDefs = Coins.all + customCoins.map { it.toDef() }
@@ -122,7 +146,10 @@ object GameJson {
             if (key !in coinIds) continue
             val o = savedHoldings.getJSONObject(key)
             val amount = o.optDouble("amount", 0.0)
-            if (amount > 0 && amount.isFinite()) holdings[key] = Holding(amount, o.optDouble("basis", 0.0))
+            if (amount > 0 && amount.isFinite()) {
+                val staked = o.optDouble("staked", 0.0).takeIf { it.isFinite() }?.coerceIn(0.0, amount) ?: 0.0
+                holdings[key] = Holding(amount, o.optDouble("basis", 0.0), staked)
+            }
         }
 
         val up = root.optJSONObject("upgrades") ?: JSONObject()
@@ -131,7 +158,36 @@ object GameJson {
             auto = up.optInt("auto", 0).coerceAtLeast(0),
             crit = up.optInt("crit", 0).coerceIn(0, Clicker.MAX_CRIT_LEVEL),
             vault = up.optInt("vault", 0).coerceIn(0, Clicker.MAX_VAULT_LEVEL),
+            farms = up.optJSONArray("farms").let { a ->
+                List(Clicker.FARMS.size) { i -> (a?.optInt(i, 0) ?: 0).coerceAtLeast(0) }
+            },
         )
+
+        val nfts = ArrayList<Nft>()
+        val nftArray = root.optJSONArray("nfts") ?: JSONArray()
+        for (i in 0 until nftArray.length()) {
+            val o = nftArray.getJSONObject(i)
+            val rarity = runCatching { Rarity.valueOf(o.getString("rarity")) }.getOrNull() ?: continue
+            val col = o.optString("collection")
+            if (Nfts.collection(col) == null) continue
+            nfts += Nft(o.optLong("id"), col, o.optInt("seed"), rarity, o.optLong("mintedAt"), o.optDouble("paid", 0.0))
+        }
+        val nftFloors = HashMap<String, Double>()
+        val nftHistory = HashMap<String, List<Double>>()
+        val savedFloors = root.optJSONObject("nftFloors") ?: JSONObject()
+        val savedNftHistory = root.optJSONObject("nftHistory") ?: JSONObject()
+        for (col in Nfts.collections) {
+            val floor = savedFloors.optDouble(col.id, col.mintPrice).takeIf { it.isFinite() && it > 0 } ?: col.mintPrice
+            nftFloors[col.id] = floor
+            nftHistory[col.id] = readDoubles(savedNftHistory.optJSONArray(col.id))
+                .filter { it.isFinite() && it > 0 }.ifEmpty { listOf(floor) }
+        }
+        val event = root.optJSONObject("activeEvent")?.let { o ->
+            val kind = runCatching { GlobalEventKind.valueOf(o.getString("kind")) }.getOrNull() ?: return@let null
+            val total = o.optDouble("total", 0.0)
+            val left = o.optDouble("left", 0.0)
+            if (total > 0 && left > 0 && left.isFinite()) GlobalEvent(kind, left.coerceAtMost(total), total) else null
+        }
 
         val trades = ArrayList<Trade>()
         val tradeArray = root.optJSONArray("trades") ?: JSONArray()
@@ -174,6 +230,12 @@ object GameJson {
             customCoins = customCoins,
             coinsListed = maxOf(root.optInt("coinsListed", 0), customCoins.maxOfOrNull { it.serial } ?: 0),
             granted = root.optDouble("granted", 0.0).takeIf { it.isFinite() } ?: 0.0,
+            stakingEarned = root.optDouble("stakingEarned", 0.0).takeIf { it.isFinite() } ?: 0.0,
+            activeEvent = event,
+            nfts = nfts,
+            nftFloors = nftFloors,
+            nftHistory = nftHistory,
+            nextNftId = maxOf(root.optLong("nextNftId", 1L), (nfts.maxOfOrNull { it.id } ?: 0L) + 1),
         )
         return if (state.netHistory.isEmpty()) state.copy(netHistory = listOf(state.netWorth())) else state
     }

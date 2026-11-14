@@ -29,7 +29,7 @@ object Trading {
         val trade = Trade(now, coinId, TradeSide.BUY, bought, net / bought, spend, fee, 0.0)
         val next = state.copy(
             cash = (state.cash - spend).coerceAtLeast(0.0),
-            holdings = state.holdings + (coinId to Holding(old.amount + bought, old.costBasis + spend)),
+            holdings = state.holdings + (coinId to Holding(old.amount + bought, old.costBasis + spend, old.staked)),
             prices = state.prices + (coinId to Listing.priceAfterBuy(price, coin.liquidity, net)),
             feesPaid = state.feesPaid + fee,
             trades = (listOf(trade) + state.trades).take(MAX_TRADES),
@@ -42,22 +42,22 @@ object Trading {
         val coin = state.coin(coinId) ?: return state to TradeResult.Failed(TradeError.UNKNOWN_COIN)
         val held = state.holdings[coinId] ?: return state to TradeResult.Failed(TradeError.NOT_ENOUGH_COINS)
         if (!amount.isFinite() || amount <= 0.0) return state to TradeResult.Failed(TradeError.TOO_SMALL)
-        if (amount > held.amount * (1 + 1e-9)) return state to TradeResult.Failed(TradeError.NOT_ENOUGH_COINS)
+        if (amount > held.liquid * (1 + 1e-9)) return state to TradeResult.Failed(TradeError.NOT_ENOUGH_COINS)
 
         val price = state.price(coinId)
-        val sold = minOf(amount, held.amount)
+        val sold = minOf(amount, held.liquid)
         val gross = Listing.usdForCoins(price, coin.liquidity, sold)
         if (gross < MIN_ORDER_USD) return state to TradeResult.Failed(TradeError.TOO_SMALL)
 
         val fee = gross * FEE_RATE
         val proceeds = gross - fee
-        val closing = sold >= held.amount * (1 - 1e-9)
+        val closing = held.staked <= 0.0 && sold >= held.amount * (1 - 1e-9)
         val removedBasis = if (closing) held.costBasis else held.costBasis * (sold / held.amount)
         val pnl = proceeds - removedBasis
         val holdings = if (closing) {
             state.holdings - coinId
         } else {
-            state.holdings + (coinId to Holding(held.amount - sold, held.costBasis - removedBasis))
+            state.holdings + (coinId to Holding(held.amount - sold, held.costBasis - removedBasis, held.staked))
         }
         val trade = Trade(now, coinId, TradeSide.SELL, sold, gross / sold, proceeds, fee, pnl)
         val next = state.copy(

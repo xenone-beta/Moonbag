@@ -2,6 +2,21 @@
 
 package dev.moonbag.app.ui.market
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import dev.moonbag.app.CoinImages
+import dev.moonbag.app.game.CustomCoin
+import dev.moonbag.app.ui.components.CoinAvatar
+import dev.moonbag.app.ui.components.CoinIcons
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -61,10 +76,6 @@ import dev.moonbag.app.game.ListingResult
 import dev.moonbag.app.ui.formatPrice
 import dev.moonbag.app.ui.formatUsd
 
-private val EMOJIS = listOf(
-    "🪙", "🚀", "🌙", "🔥", "🐕", "🐈", "🦄", "🐻",
-    "🦍", "🍀", "💰", "⚡", "🌈", "👑", "🍩", "🧠",
-)
 private val COLORS = listOf(
     0xFF7C4DFF, 0xFF00BFA5, 0xFFFF6D00, 0xFFE91E63,
     0xFF2979FF, 0xFFFFC400, 0xFF43A047, 0xFFEF5350,
@@ -74,12 +85,31 @@ private val COLORS = listOf(
 fun CreateCoinScreen(
     state: GameState,
     onBack: () -> Unit,
-    onCreate: (name: String, ticker: String, emoji: String, color: Long, style: CoinStyle) -> ListingResult,
+    onCreate: (name: String, ticker: String, icon: String, color: Long, style: CoinStyle, imageFile: String?) -> ListingResult,
     onListed: (String) -> Unit,
 ) {
     var name by rememberSaveable { mutableStateOf("") }
     var ticker by rememberSaveable { mutableStateOf("") }
-    var emojiIndex by rememberSaveable { mutableIntStateOf(0) }
+    var iconIndex by rememberSaveable { mutableIntStateOf(0) }
+    var imageFile by rememberSaveable { mutableStateOf<String?>(null) }
+    var listed by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val name = withContext(Dispatchers.IO) { CoinImages.importPhoto(context, uri) }
+                if (name != null) {
+                    imageFile?.let { CoinImages.delete(context, it) }
+                    imageFile = name
+                }
+            }
+        }
+    }
+    // A photo that was picked but never used for a listing is not kept.
+    DisposableEffect(Unit) {
+        onDispose { if (!listed) imageFile?.let { CoinImages.delete(context, it) } }
+    }
     var colorIndex by rememberSaveable { mutableIntStateOf(0) }
     var style by rememberSaveable { mutableStateOf(CoinStyle.MEME) }
     var error by rememberSaveable { mutableStateOf<ListingError?>(null) }
@@ -92,6 +122,17 @@ fun CreateCoinScreen(
     val limitReached = state.customCoins.size >= Listing.MAX_COINS
     val canLaunch = nameOk && tickerOk && enoughCash && !limitReached
     val color = COLORS[colorIndex]
+    val preview = CustomCoin(
+        id = "preview",
+        symbol = symbol,
+        name = name,
+        icon = CoinIcons.choices[iconIndex],
+        color = color,
+        style = style,
+        serial = 0,
+        createdAt = 0L,
+        imageFile = imageFile,
+    ).toDef()
 
     Scaffold(
         topBar = {
@@ -121,8 +162,11 @@ fun CreateCoinScreen(
                 }
                 Button(
                     onClick = {
-                        when (val result = onCreate(name, ticker, EMOJIS[emojiIndex], color, style)) {
-                            is ListingResult.Listed -> onListed(result.coin.id)
+                        when (val result = onCreate(name, ticker, CoinIcons.choices[iconIndex], color, style, imageFile)) {
+                            is ListingResult.Listed -> {
+                                listed = true
+                                onListed(result.coin.id)
+                            }
                             is ListingResult.Failed -> error = result.error
                         }
                     },
@@ -152,13 +196,7 @@ fun CreateCoinScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(Brush.linearGradient(listOf(Color(color).copy(alpha = 0.45f), Color(color).copy(alpha = 0.15f)))),
-                        contentAlignment = Alignment.Center,
-                    ) { Text(EMOJIS[emojiIndex], fontSize = 28.sp) }
+                    CoinAvatar(preview, size = 56.dp)
                     Column(Modifier.padding(start = 14.dp)) {
                         Text(
                             name.trim().ifEmpty { stringResource(R.string.preview_name) },
@@ -207,20 +245,49 @@ fun CreateCoinScreen(
 
             Text(stringResource(R.string.field_icon), style = MaterialTheme.typography.titleSmall)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                EMOJIS.forEachIndexed { i, e ->
+                Box(
+                    Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (imageFile != null) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerHigh,
+                        )
+                        .clickable { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.AddPhotoAlternate,
+                        contentDescription = stringResource(R.string.pick_photo),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                CoinIcons.choices.forEachIndexed { i, key ->
+                    val selected = i == iconIndex && imageFile == null
                     Box(
                         Modifier
                             .size(48.dp)
                             .clip(CircleShape)
                             .background(
-                                if (i == emojiIndex) MaterialTheme.colorScheme.primaryContainer
+                                if (selected) MaterialTheme.colorScheme.primaryContainer
                                 else MaterialTheme.colorScheme.surfaceContainerHigh,
                             )
-                            .clickable { emojiIndex = i },
+                            .clickable {
+                                iconIndex = i
+                                imageFile?.let { CoinImages.delete(context, it) }
+                                imageFile = null
+                            },
                         contentAlignment = Alignment.Center,
-                    ) { Text(e, fontSize = 24.sp) }
+                    ) {
+                        Icon(CoinIcons.get(key), contentDescription = null, tint = MaterialTheme.colorScheme.onSurface)
+                    }
                 }
             }
+            Text(
+                stringResource(if (imageFile != null) R.string.photo_selected else R.string.photo_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             Text(stringResource(R.string.field_color), style = MaterialTheme.typography.titleSmall)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

@@ -29,6 +29,7 @@ object PriceEngine {
     private const val MOOD_NOISE = 0.12
     private const val MOOD_PUSH = 0.0015
     private const val MAX_EVENTS = 30
+    private const val EVENT_PUSH = 0.0006
 
     fun gaussian(random: Random): Double {
         val u1 = random.nextDouble().coerceAtLeast(1e-12)
@@ -47,6 +48,8 @@ object PriceEngine {
         val mood = (state.sentiment * MOOD_DECAY.pow(dt) + MOOD_NOISE * sqrt(dt) * gaussian(random))
             .coerceIn(-3.0, 3.0)
         val pull = exp(-REVERT * dt)
+        val event = state.activeEvent
+        val volFactor = if (event != null) GlobalEvents.volatilityFactor(event.kind) else 1.0
         val spread = sqrt((1.0 - exp(-2.0 * REVERT * dt)) / (2.0 * REVERT))
 
         val prices = HashMap<String, Double>(state.prices)
@@ -58,7 +61,12 @@ object PriceEngine {
             val anchor = ln(coin.startPrice)
             var logPrice = anchor + (ln(current) - anchor) * pull +
                 coin.beta * mood * MOOD_PUSH * dt +
-                coin.volatility * spread * gaussian(random)
+                (if (event != null) GlobalEvents.bias(event.kind, coin.kind) * EVENT_PUSH * dt else 0.0) +
+                coin.volatility * volFactor * spread * gaussian(random)
+            if (event != null && event.kind == GlobalEventKind.FLASH_CRASH && event.justStarted) {
+                val drop = (0.04 + 0.03 * coin.risk) * if (coin.kind == CoinKind.MAJOR) 0.5 else 1.0
+                logPrice += ln(1.0 - drop)
+            }
 
             var eventKind: EventKind? = null
             var eventLog = 0.0
@@ -83,10 +91,14 @@ object PriceEngine {
             }
         }
 
-        val moved = state.copy(
+        val remaining = event?.copy(ticksLeft = event.ticksLeft - dt)?.takeIf { it.ticksLeft > 0.0 }
+        val nextEvent = remaining ?: if (event == null) GlobalEvents.maybeStart(random, dt) else null
+
+        val moved = Nfts.advanceFloors(state, dt, mood, random).copy(
             prices = prices,
             history = history,
             sentiment = mood,
+            activeEvent = nextEvent,
             events = if (events.isEmpty()) state.events else (events + state.events).take(MAX_EVENTS),
         )
         return moved.copy(netHistory = (state.netHistory + moved.netWorth()).takeLast(MAX_POINTS))

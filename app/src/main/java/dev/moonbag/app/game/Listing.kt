@@ -23,17 +23,18 @@ data class CustomCoin(
     val id: String,
     val symbol: String,
     val name: String,
-    val emoji: String,
+    val icon: String,
     val color: Long,
     val style: CoinStyle,
     val serial: Int,
     val createdAt: Long,
+    val imageFile: String? = null,
 ) {
     fun toDef(): CoinDef = CoinDef(
         id = id,
         symbol = symbol,
         name = name,
-        emoji = emoji,
+        icon = icon,
         color = color,
         startPrice = style.startPrice,
         supply = SUPPLY,
@@ -46,6 +47,7 @@ data class CustomCoin(
         liquidity = style.liquidity,
         serial = serial,
         createdAt = createdAt,
+        imageFile = imageFile,
     )
 
     companion object {
@@ -80,10 +82,11 @@ object Listing {
         state: GameState,
         name: String,
         ticker: String,
-        emoji: String,
+        icon: String,
         color: Long,
         style: CoinStyle,
         now: Long,
+        imageFile: String? = null,
     ): Pair<GameState, ListingResult> {
         fun fail(e: ListingError) = state to ListingResult.Failed(e)
 
@@ -100,11 +103,12 @@ object Listing {
             id = "c$serial",
             symbol = symbol,
             name = cleanName,
-            emoji = emoji.ifBlank { "🪙" },
+            icon = icon.ifBlank { "star" },
             color = color,
             style = style,
             serial = serial,
             createdAt = now,
+            imageFile = imageFile,
         )
         val price = style.startPrice
         val allocation = FOUNDER_ALLOCATION_USD / price

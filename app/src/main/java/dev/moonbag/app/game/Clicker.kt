@@ -8,6 +8,9 @@ enum class UpgradeKind { TAP, AUTO, CRIT, VAULT }
 
 data class TapResult(val value: Double, val crit: Boolean)
 
+/** A kind of mining farm: bought many times, each one adds [perSecond] dollars per second. */
+data class FarmDef(val id: String, val icon: String, val basePrice: Double, val growth: Double, val perSecond: Double)
+
 /** The "mine" clicker that produces the first play dollars. */
 object Clicker {
 
@@ -17,9 +20,35 @@ object Clicker {
     const val MAX_VAULT_LEVEL = 10
     private const val BASE_VAULT_HOURS = 2
 
+    val FARMS: List<FarmDef> = listOf(
+        FarmDef("gpu", "memory", 150.0, 1.12, 1.0),
+        FarmDef("farm", "dns", 2_000.0, 1.13, 15.0),
+        FarmDef("dc", "storage", 30_000.0, 1.14, 250.0),
+        FarmDef("quantum", "cloud", 500_000.0, 1.15, 4_500.0),
+    )
+
+    fun farmCount(u: Upgrades, index: Int): Int = u.farms.getOrElse(index) { 0 }
+
+    fun farmCost(index: Int, owned: Int): Double {
+        val f = FARMS[index]
+        return (f.basePrice * f.growth.pow(owned) * 100).roundToLong() / 100.0
+    }
+
+    fun farmIncome(u: Upgrades): Double = FARMS.indices.sumOf { farmCount(u, it) * FARMS[it].perSecond }
+
+    /** Buys one more farm of the given kind, or returns null if it is too expensive. */
+    fun buyFarm(state: GameState, index: Int): GameState? {
+        if (index !in FARMS.indices) return null
+        val owned = farmCount(state.upgrades, index)
+        val price = farmCost(index, owned)
+        if (state.cash + 1e-9 < price) return null
+        val farms = List(FARMS.size) { farmCount(state.upgrades, it) + if (it == index) 1 else 0 }
+        return state.copy(cash = (state.cash - price).coerceAtLeast(0.0), upgrades = state.upgrades.copy(farms = farms))
+    }
+
     fun tapValue(u: Upgrades): Double = 1.0 + u.tap * (1.0 + u.tap * 0.15)
 
-    fun perSecond(u: Upgrades): Double = u.auto * 0.5 * (1.0 + u.auto * 0.1)
+    fun perSecond(u: Upgrades): Double = u.auto * 0.5 * (1.0 + u.auto * 0.1) + farmIncome(u)
 
     fun critChance(u: Upgrades): Double = BASE_CRIT_CHANCE + 0.01 * u.crit
 

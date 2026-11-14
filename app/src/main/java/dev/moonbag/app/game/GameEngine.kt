@@ -30,7 +30,8 @@ class GameEngine(
 
         val vaultSeconds = Clicker.vaultHours(current.upgrades) * 3600.0
         val mined = Clicker.perSecond(current.upgrades) * min(elapsed.toDouble(), vaultSeconds)
-        val withIncome = current.copy(
+        val staked = Staking.accrue(current, min(elapsed, Staking.MAX_OFFLINE_SECONDS).toDouble())
+        val withIncome = staked.copy(
             cash = current.cash + mined,
             lifetimeEarned = current.lifetimeEarned + mined,
         )
@@ -41,7 +42,7 @@ class GameEngine(
     /** One step of the live market. [seconds] is the real time since the previous tick. */
     fun tick(seconds: Double) {
         val now = clock()
-        val earned = Clicker.earnPassive(_state.value, seconds)
+        val earned = Clicker.earnPassive(Staking.accrue(_state.value, seconds), seconds)
         _state.value = PriceEngine.advance(earned, seconds / PriceEngine.TICK_SECONDS, now, random)
     }
 
@@ -57,6 +58,37 @@ class GameEngine(
         return true
     }
 
+    fun buyFarm(index: Int): Boolean {
+        val next = Clicker.buyFarm(_state.value, index) ?: return false
+        _state.value = next
+        return true
+    }
+
+    fun stake(coinId: String, amount: Double): Boolean {
+        val next = Staking.stake(_state.value, coinId, amount) ?: return false
+        _state.value = next
+        return true
+    }
+
+    fun unstake(coinId: String, amount: Double): Boolean {
+        val next = Staking.unstake(_state.value, coinId, amount) ?: return false
+        _state.value = next
+        return true
+    }
+
+    fun mintNft(collectionId: String): MintResult {
+        val (next, result) = Nfts.mint(_state.value, collectionId, clock(), random)
+        if (result is MintResult.Minted) _state.value = next
+        return result
+    }
+
+    /** Sells an NFT and returns what you received, or null if you do not own it. */
+    fun sellNft(nftId: Long): Double? {
+        val (next, proceeds) = Nfts.sell(_state.value, nftId)
+        if (proceeds != null) _state.value = next
+        return proceeds
+    }
+
     fun buy(coinId: String, usd: Double): TradeResult {
         val (next, result) = Trading.buy(_state.value, coinId, usd, clock())
         if (result is TradeResult.Ok) _state.value = next
@@ -69,8 +101,15 @@ class GameEngine(
         return result
     }
 
-    fun createCoin(name: String, ticker: String, emoji: String, color: Long, style: CoinStyle): ListingResult {
-        val (next, result) = Listing.create(_state.value, name, ticker, emoji, color, style, clock())
+    fun createCoin(
+        name: String,
+        ticker: String,
+        icon: String,
+        color: Long,
+        style: CoinStyle,
+        imageFile: String?,
+    ): ListingResult {
+        val (next, result) = Listing.create(_state.value, name, ticker, icon, color, style, clock(), imageFile)
         if (result is ListingResult.Listed) _state.value = next
         return result
     }

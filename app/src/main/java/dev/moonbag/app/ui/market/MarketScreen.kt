@@ -20,7 +20,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -122,6 +125,10 @@ fun MarketScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item(key = "summary") { SummaryCard(state) }
+
+            state.activeEvent?.let { event ->
+                item(key = "global-event") { EventBanner(event) }
+            }
 
             if (broke) {
                 item(key = "broke") {
@@ -250,8 +257,8 @@ private fun NewsCard(state: GameState, event: MarketEvent, onClick: () -> Unit) 
     val coin = state.coin(event.coinId) ?: return
     val pct = formatPercent(event.percent)
     val text = when (event.kind) {
-        EventKind.PUMP -> stringResource(R.string.news_pump, coin.emoji, coin.symbol, pct)
-        EventKind.DUMP -> stringResource(R.string.news_dump, coin.emoji, coin.symbol, pct)
+        EventKind.PUMP -> stringResource(R.string.news_pump, coin.symbol, pct)
+        EventKind.DUMP -> stringResource(R.string.news_dump, coin.symbol, pct)
         EventKind.RUG -> stringResource(R.string.news_rug, coin.symbol, pct)
     }
     Card(
@@ -263,11 +270,17 @@ private fun NewsCard(state: GameState, event: MarketEvent, onClick: () -> Unit) 
             .animateContentSize(),
     ) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = stringResource(R.string.news_label),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold,
+            Icon(
+                imageVector = when (event.kind) {
+                    EventKind.PUMP -> Icons.AutoMirrored.Filled.TrendingUp
+                    EventKind.DUMP -> Icons.AutoMirrored.Filled.TrendingDown
+                    EventKind.RUG -> Icons.Filled.Warning
+                },
+                contentDescription = stringResource(R.string.news_label),
+                tint = when (event.kind) {
+                    EventKind.PUMP -> MarketColors.up()
+                    else -> MarketColors.down()
+                },
             )
             Spacer(Modifier.width(10.dp))
             Text(text, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)

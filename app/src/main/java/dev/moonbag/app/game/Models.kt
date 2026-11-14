@@ -1,8 +1,11 @@
 package dev.moonbag.app.game
 
-data class Holding(val amount: Double, val costBasis: Double) {
+data class Holding(val amount: Double, val costBasis: Double, val staked: Double = 0.0) {
     /** Average price paid per coin, fees included. */
     val averagePrice: Double get() = if (amount > 0) costBasis / amount else 0.0
+
+    /** Coins that are not locked in staking and can be sold. */
+    val liquid: Double get() = (amount - staked).coerceAtLeast(0.0)
 }
 
 enum class TradeSide { BUY, SELL }
@@ -25,7 +28,14 @@ enum class EventKind { PUMP, DUMP, RUG }
 data class MarketEvent(val time: Long, val coinId: String, val kind: EventKind, val percent: Double)
 
 /** Levels of the four clicker upgrades. */
-data class Upgrades(val tap: Int = 0, val auto: Int = 0, val crit: Int = 0, val vault: Int = 0)
+data class Upgrades(
+    val tap: Int = 0,
+    val auto: Int = 0,
+    val crit: Int = 0,
+    val vault: Int = 0,
+    /** How many of each mining farm are owned, in the order of [Clicker.FARMS]. */
+    val farms: List<Int> = List(Clicker.FARMS.size) { 0 },
+)
 
 data class GameState(
     val cash: Double = 0.0,
@@ -52,6 +62,14 @@ data class GameState(
     val coinsListed: Int = 0,
     /** Free coins received (founder allocations). Not counted as profit. */
     val granted: Double = 0.0,
+    /** Value of everything earned by staking, at the prices of the moment it was earned. */
+    val stakingEarned: Double = 0.0,
+    val activeEvent: GlobalEvent? = null,
+    val nfts: List<Nft> = emptyList(),
+    /** Floor price per NFT collection. */
+    val nftFloors: Map<String, Double> = emptyMap(),
+    val nftHistory: Map<String, List<Double>> = emptyMap(),
+    val nextNftId: Long = 1L,
 ) {
     /** Built-in coins followed by the ones you created. */
     val allCoins: List<CoinDef> get() = Coins.all + customCoins.map { it.toDef() }
@@ -62,7 +80,9 @@ data class GameState(
 
     fun holdingsValue(): Double = holdings.entries.sumOf { (id, h) -> h.amount * price(id) }
 
-    fun netWorth(): Double = cash + holdingsValue()
+    fun nftValue(): Double = nfts.sumOf { Nfts.value(this, it) }
+
+    fun netWorth(): Double = cash + holdingsValue() + nftValue()
 
     /** Profit or loss against everything ever earned by clicking. */
     fun totalProfit(): Double = netWorth() - lifetimeEarned - granted
@@ -85,10 +105,12 @@ data class GameState(
                 history = Coins.all.associate { it.id to listOf(it.startPrice) },
                 netHistory = listOf(STARTING_CASH),
                 savedAt = now,
+                nftFloors = Nfts.collections.associate { it.id to it.mintPrice },
+                nftHistory = Nfts.collections.associate { it.id to listOf(it.mintPrice) },
             )
             repeat(120) { state = PriceEngine.advance(state, 1.0, now, random, recordEvents = false) }
             // Drop the pre-run's bookkeeping: the game starts from what the charts show now.
-            return state.copy(events = emptyList(), netHistory = List(state.netHistory.size) { STARTING_CASH })
+            return state.copy(events = emptyList(), activeEvent = null, netHistory = List(state.netHistory.size) { STARTING_CASH })
         }
     }
 }

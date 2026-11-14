@@ -36,6 +36,7 @@ import dev.moonbag.app.R
 import dev.moonbag.app.game.CoinStyle
 import dev.moonbag.app.game.CustomCoin
 import dev.moonbag.app.game.Listing
+import dev.moonbag.app.ui.components.CoinAvatar
 import dev.moonbag.app.ui.formatDate
 
 fun styleLabel(style: CoinStyle): Int = when (style) {
@@ -71,16 +72,7 @@ fun CertificateDialog(coin: CustomCoin, onDismiss: () -> Unit) {
                 )
                 HorizontalDivider(Modifier.fillMaxWidth(0.5f), color = Color(0xFFB8862B).copy(alpha = 0.5f))
 
-                Box(
-                    modifier = Modifier
-                        .padding(top = 6.dp)
-                        .size(84.dp)
-                        .clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(tint.copy(alpha = 0.45f), tint.copy(alpha = 0.15f)))),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(coin.emoji, fontSize = 42.sp)
-                }
+                CoinAvatar(coin.toDef(), size = 84.dp, modifier = Modifier.padding(top = 6.dp))
 
                 Text(
                     stringResource(R.string.cert_certifies),

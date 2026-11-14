@@ -118,6 +118,10 @@ fun PortfolioScreen(state: GameState, onOpenCoin: (String) -> Unit, onGoMarket: 
                 ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         Row(Modifier.fillMaxWidth()) {
+                            Stat(stringResource(R.string.nft_value), formatUsd(state.nftValue()), Modifier.weight(1f))
+                            Stat(stringResource(R.string.staking_earned), formatUsd(state.stakingEarned), Modifier.weight(1f))
+                        }
+                        Row(Modifier.fillMaxWidth()) {
                             Stat(stringResource(R.string.cash), formatUsd(state.cash), Modifier.weight(1f))
                             Stat(stringResource(R.string.invested), formatUsd(state.lifetimeEarned), Modifier.weight(1f))
                         }

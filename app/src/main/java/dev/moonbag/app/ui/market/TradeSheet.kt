@@ -74,12 +74,12 @@ fun TradeSheet(
     var error by remember { mutableStateOf<TradeError?>(null) }
 
     val buying = side == TradeSide.BUY
-    val available = if (buying) cash else (holding?.amount ?: 0.0) * price
+    val available = if (buying) cash else (holding?.liquid ?: 0.0) * price
     val typed = text.replace(',', '.').toDoubleOrNull() ?: 0.0
     val usd = if (useAll) available else typed
     val liquidity = coin.liquidity
     val netUsd = usd * (1 - Trading.FEE_RATE)
-    val sellCoins = if (useAll || usd >= available * 0.9999) (holding?.amount ?: 0.0) else usd / price
+    val sellCoins = if (useAll || usd >= available * 0.9999) (holding?.liquid ?: 0.0) else usd / price
     val preview = if (buying) {
         Listing.coinsForUsd(price, liquidity, netUsd)
     } else {
@@ -96,7 +96,7 @@ fun TradeSheet(
         val result = if (buying) {
             onBuy(if (useAll) cash else usd)
         } else {
-            val held = holding?.amount ?: 0.0
+            val held = holding?.liquid ?: 0.0
             val allOfIt = useAll || usd >= available * 0.9999
             onSell(if (allOfIt) held else usd / price)
         }
@@ -136,7 +136,7 @@ fun TradeSheet(
                     selected = !buying,
                     onClick = { side = TradeSide.SELL; text = ""; useAll = false; error = null },
                     shape = SegmentedButtonDefaults.itemShape(1, 2),
-                    enabled = holding != null,
+                    enabled = holding != null && holding.liquid > 0.0,
                 ) { Text(stringResource(R.string.sell)) }
             }
 

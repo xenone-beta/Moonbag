@@ -3,6 +3,9 @@
 package dev.moonbag.app.ui.mine
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -27,6 +30,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.TouchApp
@@ -67,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.moonbag.app.R
 import dev.moonbag.app.game.Clicker
+import dev.moonbag.app.game.FarmDef
 import dev.moonbag.app.game.GameState
 import dev.moonbag.app.game.TapResult
 import dev.moonbag.app.game.UpgradeKind
@@ -84,6 +91,7 @@ fun MineScreen(
     haptics: Boolean,
     onTap: () -> TapResult,
     onBuyUpgrade: (UpgradeKind) -> Boolean,
+    onBuyFarm: (Int) -> Boolean,
 ) {
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val u = state.upgrades
@@ -148,6 +156,20 @@ fun MineScreen(
                 UpgradeCard(kind, state, onBuy = { onBuyUpgrade(kind) })
             }
 
+            Text(
+                stringResource(R.string.farms),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                stringResource(R.string.farms_hint, formatUsd(Clicker.farmIncome(u))),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Clicker.FARMS.forEachIndexed { index, farm ->
+                FarmCard(index, farm, state, onBuy = { onBuyFarm(index) })
+            }
+
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
@@ -210,12 +232,29 @@ private fun TapArea(haptics: Boolean, onTap: () -> TapResult) {
                 },
             contentAlignment = Alignment.Center,
         ) {
-            Text(text = "🌕", fontSize = 120.sp)
+            MoonArt(Modifier.size(150.dp))
         }
 
         floaters.forEach { floater ->
             key(floater.id) { FloatingLabel(floater, onDone = { floaters.remove(floater) }) }
         }
+    }
+}
+
+/** A drawn moon: light disc, soft shade on one side and a few craters. */
+@Composable
+private fun MoonArt(modifier: Modifier = Modifier) {
+    val light = Color(0xFFFFF4D6)
+    val shade = Color(0xFFE2CD9A)
+    val crater = Color(0xFFD1B97F)
+    Canvas(modifier) {
+        val r = size.minDimension / 2
+        val c = center
+        drawCircle(Brush.radialGradient(listOf(light, shade), center = Offset(c.x - r * 0.3f, c.y - r * 0.3f), radius = r * 1.4f), r, c)
+        drawCircle(crater, r * 0.18f, Offset(c.x - r * 0.35f, c.y - r * 0.25f))
+        drawCircle(crater, r * 0.11f, Offset(c.x + r * 0.30f, c.y - r * 0.40f))
+        drawCircle(crater, r * 0.24f, Offset(c.x + r * 0.20f, c.y + r * 0.30f))
+        drawCircle(crater, r * 0.08f, Offset(c.x - r * 0.40f, c.y + r * 0.35f))
     }
 }
 
@@ -227,7 +266,7 @@ private fun FloatingLabel(floater: Floater, onDone: () -> Unit) {
         onDone()
     }
     Text(
-        text = if (floater.crit) floater.text + " ✨" else floater.text,
+        text = if (floater.crit) floater.text + " ×5" else floater.text,
         style = if (floater.crit) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.Bold,
         color = if (floater.crit) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurface,
@@ -307,6 +346,49 @@ private fun UpgradeCard(kind: UpgradeKind, state: GameState, onBuy: () -> Unit) 
             Button(onClick = onBuy, enabled = !maxed && state.cash + 1e-9 >= cost) {
                 Text(if (maxed) stringResource(R.string.max_level) else formatUsd(cost))
             }
+        }
+    }
+}
+
+private fun farmIcon(key: String): ImageVector = when (key) {
+    "memory" -> Icons.Filled.Memory
+    "dns" -> Icons.Filled.Dns
+    "storage" -> Icons.Filled.Storage
+    else -> Icons.Filled.Cloud
+}
+
+@Composable
+private fun FarmCard(index: Int, farm: FarmDef, state: GameState, onBuy: () -> Unit) {
+    val owned = Clicker.farmCount(state.upgrades, index)
+    val cost = Clicker.farmCost(index, owned)
+    val names = listOf(R.string.farm_gpu, R.string.farm_rig, R.string.farm_dc, R.string.farm_quantum)
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.tertiaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(farmIcon(farm.icon), contentDescription = null, tint = MaterialTheme.colorScheme.onTertiaryContainer)
+            }
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Text(
+                    stringResource(R.string.farm_title, stringResource(names[index]), owned),
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    stringResource(R.string.farm_desc, formatUsd(farm.perSecond), formatUsd(farm.perSecond * owned)),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Button(onClick = onBuy, enabled = state.cash + 1e-9 >= cost) { Text(formatUsd(cost)) }
         }
     }
 }

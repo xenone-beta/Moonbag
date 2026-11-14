@@ -3,16 +3,19 @@ package dev.moonbag.app
 import android.app.Application
 import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
+import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.viewModelScope
 import dev.moonbag.app.game.CoinStyle
 import dev.moonbag.app.game.GameEngine
 import dev.moonbag.app.game.GameState
 import dev.moonbag.app.game.GameStore
 import dev.moonbag.app.game.ListingResult
+import dev.moonbag.app.game.MintResult
 import dev.moonbag.app.game.OfflineReport
 import dev.moonbag.app.game.PriceEngine
 import dev.moonbag.app.game.TapResult
 import dev.moonbag.app.game.TradeResult
+import dev.moonbag.app.ui.widget.PortfolioWidget
 import dev.moonbag.app.game.UpgradeKind
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -65,18 +68,36 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         loop?.cancel()
         loop = null
         store.save(engine.snapshotForSave())
+        viewModelScope.launch { PortfolioWidget().updateAll(getApplication<Application>()) }
     }
 
     fun tap(): TapResult = engine.tap()
 
     fun buyUpgrade(kind: UpgradeKind): Boolean = engine.buyUpgrade(kind)
 
+    fun buyFarm(index: Int): Boolean = engine.buyFarm(index)
+
+    fun stake(coinId: String, amount: Double): Boolean = engine.stake(coinId, amount)
+
+    fun unstake(coinId: String, amount: Double): Boolean = engine.unstake(coinId, amount)
+
+    fun mintNft(collectionId: String): MintResult = engine.mintNft(collectionId)
+
+    fun sellNft(nftId: Long): Double? = engine.sellNft(nftId)
+
     fun buy(coinId: String, usd: Double): TradeResult = engine.buy(coinId, usd)
 
     fun sell(coinId: String, amount: Double): TradeResult = engine.sell(coinId, amount)
 
-    fun createCoin(name: String, ticker: String, emoji: String, color: Long, style: CoinStyle): ListingResult {
-        val result = engine.createCoin(name, ticker, emoji, color, style)
+    fun createCoin(
+        name: String,
+        ticker: String,
+        icon: String,
+        color: Long,
+        style: CoinStyle,
+        imageFile: String?,
+    ): ListingResult {
+        val result = engine.createCoin(name, ticker, icon, color, style, imageFile)
         if (result is ListingResult.Listed) store.save(engine.snapshotForSave())
         return result
     }
@@ -96,6 +117,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun resetGame() {
+        CoinImages.clear(getApplication())
         engine.reset()
         _offline.value = null
         store.save(engine.snapshotForSave())

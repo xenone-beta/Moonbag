@@ -10,7 +10,7 @@ class ListingTest {
     private fun rich(cash: Double = 5_000.0) = GameState.new(1_000L, Random(1)).copy(cash = cash)
 
     private fun list(s: GameState, name: String = "Moon Cat", ticker: String = "MCAT", style: CoinStyle = CoinStyle.MEME) =
-        Listing.create(s, name, ticker, "🐈", 0xFF7C4DFF, style, 5_000L)
+        Listing.create(s, name, ticker, "paw", 0xFF7C4DFF, style, 5_000L)
 
     @Test
     fun builtInCoinsIncludeMajors() {
