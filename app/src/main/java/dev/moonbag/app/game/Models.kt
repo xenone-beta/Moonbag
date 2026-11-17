@@ -60,7 +60,7 @@ data class GameState(
     val customCoins: List<CustomCoin> = emptyList(),
     /** How many coins were ever listed; used for certificate numbers. */
     val coinsListed: Int = 0,
-    /** Free coins received (founder allocations). Not counted as profit. */
+    /** Free coins received (founder allocations, airdrops) minus the value of coins sent away. Not counted as profit. */
     val granted: Double = 0.0,
     /** Value of everything earned by staking, at the prices of the moment it was earned. */
     val stakingEarned: Double = 0.0,
@@ -76,6 +76,10 @@ data class GameState(
     val campaigns: List<Campaign> = emptyList(),
     /** When this game began; the rival leaderboard is measured from here. */
     val startedAt: Long = 0L,
+    /** The wallet's activity list, newest first. */
+    val walletTxs: List<WalletTx> = emptyList(),
+    /** When the free airdrop was last claimed. */
+    val lastAirdropAt: Long = 0L,
 ) {
     /** Built-in coins followed by the ones you created. */
     val allCoins: List<CoinDef> get() = Coins.all + customCoins.map { it.toDef() }

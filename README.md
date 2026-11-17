@@ -37,6 +37,21 @@ your phone, and all money is play money. No internet permission, no accounts, no
 - A home screen widget with your portfolio (as of the last time the app was closed).
 - Material 3 with dynamic colors (Material You), light and dark theme, English and Russian.
 
+## Wallet (still a game)
+
+Moonbag now looks and behaves like a crypto wallet, but nothing is real: no blockchain, no network access, play money only.
+
+- **Wallet tab**: balance, Send, Receive, Swap and Earn buttons, and Tokens, NFTs and Activity lists.
+- **Recovery phrase**: twelve words from a 256-word game list (not BIP-39). They only give your wallet its
+  addresses inside the game and control no real funds. Create one, back it up, or restore it from the words.
+- **Four invented networks** (Moonchain, Lunar L2, Orbit, Nova) with their own address formats and fees.
+  Every coin lives on one network; your own coins live on Moonchain.
+- **Send** coins to a saved contact or one of the invented traders; the network fee is paid in play dollars.
+- **Receive**: your address on each network, copy and share, plus a free airdrop every six hours.
+- **Swap**: exchange one coin for another with the fees and price impact shown first.
+- **Browser**: in-game "dapps" (swap, mint hub, miner, launchpad, faucet, leaderboard, analytics, networks)
+  reached by tapping a tile or typing a `moon://` address. It never goes online.
+
 ## How the market works
 
 Each coin follows a mean-reverting random walk (Ornstein-Uhlenbeck on the log price) with its own

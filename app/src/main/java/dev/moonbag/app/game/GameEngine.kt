@@ -123,6 +123,27 @@ class GameEngine(
         return result
     }
 
+    fun send(coinId: String, amount: Double, to: String, ownAddresses: Set<String>): SendResult {
+        val (next, result) = Transfers.send(_state.value, coinId, amount, to, ownAddresses, clock())
+        if (result is SendResult.Ok) _state.value = next
+        return result
+    }
+
+    fun swap(from: String, to: String, amount: Double): SwapResult {
+        val (next, result) = Swaps.swap(_state.value, from, to, amount, clock())
+        if (result is SwapResult.Ok) _state.value = next
+        return result
+    }
+
+    fun quoteSwap(from: String, to: String, amount: Double): SwapQuote? = Swaps.quote(_state.value, from, to, amount)
+
+    /** Claims the free airdrop if it is ready; returns what arrived. */
+    fun claimAirdrop(): WalletTx? {
+        val (next, tx) = Transfers.claimAirdrop(_state.value, clock(), random) ?: return null
+        _state.value = next
+        return tx
+    }
+
     fun createCoin(
         name: String,
         ticker: String,

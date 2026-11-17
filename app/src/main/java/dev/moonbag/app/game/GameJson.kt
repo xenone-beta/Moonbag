@@ -22,6 +22,21 @@ object GameJson {
             .put("granted", state.granted)
             .put("stakingEarned", state.stakingEarned)
             .put("startedAt", state.startedAt)
+            .put("lastAirdropAt", state.lastAirdropAt)
+            .put(
+                "walletTxs",
+                JSONArray().also { a ->
+                    state.walletTxs.forEach { t ->
+                        a.put(
+                            JSONObject()
+                                .put("time", t.time).put("kind", t.kind.name).put("coin", t.coinId)
+                                .put("amount", t.amount).put("to", t.counterparty).put("toCoin", t.toCoinId)
+                                .put("toAmount", t.toAmount).put("fee", t.feeUsd).put("value", t.valueUsd)
+                                .put("chain", t.chainId),
+                        )
+                    }
+                },
+            )
             .put("nextOrderId", state.nextOrderId)
             .put(
                 "orders",
@@ -282,6 +297,26 @@ object GameJson {
             events += MarketEvent(o.optLong("time"), coin, kind, o.optDouble("percent"))
         }
 
+        val walletTxs = ArrayList<WalletTx>()
+        val txArray = root.optJSONArray("walletTxs") ?: JSONArray()
+        for (i in 0 until txArray.length()) {
+            val o = txArray.getJSONObject(i)
+            val kind = runCatching { TxKind.valueOf(o.getString("kind")) }.getOrNull() ?: continue
+            val coin = o.optString("coin")
+            if (coin !in coinIds) continue
+            val toCoin = o.optString("toCoin")
+            walletTxs += WalletTx(
+                time = o.optLong("time"), kind = kind, coinId = coin,
+                amount = o.optDouble("amount", 0.0).takeIf { it.isFinite() } ?: 0.0,
+                counterparty = o.optString("to"),
+                toCoinId = if (toCoin in coinIds) toCoin else "",
+                toAmount = o.optDouble("toAmount", 0.0).takeIf { it.isFinite() } ?: 0.0,
+                feeUsd = o.optDouble("fee", 0.0).takeIf { it.isFinite() } ?: 0.0,
+                valueUsd = o.optDouble("value", 0.0).takeIf { it.isFinite() } ?: 0.0,
+                chainId = o.optString("chain"),
+            )
+        }
+
         val state = GameState(
             cash = root.optDouble("cash", 0.0).takeIf { it.isFinite() && it >= 0 } ?: 0.0,
             holdings = holdings,
@@ -310,6 +345,8 @@ object GameJson {
             orderFills = fills,
             campaigns = campaigns,
             startedAt = root.optLong("startedAt", 0L).takeIf { it > 0 } ?: root.optLong("savedAt", 0L),
+            walletTxs = walletTxs,
+            lastAirdropAt = root.optLong("lastAirdropAt", 0L).coerceAtLeast(0L),
             nextNftId = maxOf(root.optLong("nextNftId", 1L), (nfts.maxOfOrNull { it.id } ?: 0L) + 1),
         )
         return if (state.netHistory.isEmpty()) state.copy(netHistory = listOf(state.netWorth())) else state

@@ -16,6 +16,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ListItem
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LargeTopAppBar
@@ -54,6 +58,10 @@ fun SettingsScreen(
     onHaptics: (Boolean) -> Unit,
     onReset: () -> Unit,
     onOpenTutorial: () -> Unit,
+    wallet: dev.moonbag.app.game.WalletInfo,
+    onOpenSeed: () -> Unit,
+    onOpenNetworks: () -> Unit,
+    onOpenContacts: () -> Unit,
 ) {
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var confirmReset by remember { mutableStateOf(false) }
@@ -123,6 +131,43 @@ fun SettingsScreen(
                         Stat(stringResource(R.string.trades_count), state.trades.size.toString(), Modifier.weight(1f))
                         Stat(stringResource(R.string.version), BuildConfig.VERSION_NAME, Modifier.weight(1f))
                     }
+                }
+            }
+
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(Modifier.padding(vertical = 4.dp)) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.seed_screen_title)) },
+                        supportingContent = {
+                            Text(
+                                stringResource(
+                                    when {
+                                        !wallet.exists -> R.string.wallet_status_none
+                                        wallet.backedUp -> R.string.wallet_status_saved
+                                        else -> R.string.wallet_status_unsaved
+                                    },
+                                ),
+                            )
+                        },
+                        modifier = Modifier.clickable(onClick = onOpenSeed),
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    )
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.networks_title)) },
+                        supportingContent = { Text(stringResource(R.string.networks_desc)) },
+                        modifier = Modifier.clickable(onClick = onOpenNetworks),
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    )
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.contacts_title)) },
+                        supportingContent = { Text(stringResource(R.string.contacts_desc)) },
+                        modifier = Modifier.clickable(onClick = onOpenContacts),
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                    )
                 }
             }
 

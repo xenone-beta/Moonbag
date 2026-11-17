@@ -5,7 +5,16 @@ import android.os.SystemClock
 import androidx.lifecycle.AndroidViewModel
 import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.viewModelScope
+import dev.moonbag.app.game.Chains
 import dev.moonbag.app.game.CoinStyle
+import dev.moonbag.app.game.Contact
+import dev.moonbag.app.game.SendResult
+import dev.moonbag.app.game.SwapQuote
+import dev.moonbag.app.game.SwapResult
+import dev.moonbag.app.game.Wallet
+import dev.moonbag.app.game.WalletInfo
+import dev.moonbag.app.game.WalletStore
+import dev.moonbag.app.game.WalletTx
 import dev.moonbag.app.game.GameEngine
 import dev.moonbag.app.game.GameState
 import dev.moonbag.app.game.GameStore
@@ -48,6 +57,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _tutorialDone = MutableStateFlow(store.tutorialDone)
     val tutorialDone: StateFlow<Boolean> = _tutorialDone.asStateFlow()
 
+    private val wallets = WalletStore(app)
+
+    private val _wallet = MutableStateFlow(WalletInfo(wallets.words, wallets.backedUp))
+    val wallet: StateFlow<WalletInfo> = _wallet.asStateFlow()
+
+    private val _contacts = MutableStateFlow(wallets.contacts)
+    val contacts: StateFlow<List<Contact>> = _contacts.asStateFlow()
+
     private var loop: Job? = null
 
     /** Called when the screen becomes visible: simulates the time away, then starts the live market. */
@@ -76,6 +93,57 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         store.save(engine.snapshotForSave())
         viewModelScope.launch { PortfolioWidget().updateAll(getApplication<Application>()) }
     }
+
+    /** Makes a new wallet with fresh words. Returns them so they can be shown once. */
+    fun createWallet(): List<String> {
+        val words = Wallet.generate(java.security.SecureRandom())
+        wallets.words = words
+        wallets.backedUp = false
+        _wallet.value = WalletInfo(words, false)
+        return words
+    }
+
+    /** Restores the identity from twelve words typed by the user. */
+    fun importWallet(text: String): Boolean {
+        val words = Wallet.normalize(text)
+        if (!Wallet.isValid(words)) return false
+        wallets.words = words
+        wallets.backedUp = true
+        _wallet.value = WalletInfo(words, true)
+        return true
+    }
+
+    fun confirmBackup() {
+        wallets.backedUp = true
+        _wallet.value = _wallet.value.copy(backedUp = true)
+    }
+
+    fun addContact(name: String, address: String, chainId: String): Boolean {
+        val chain = Chains.get(chainId) ?: return false
+        val clean = name.trim()
+        if (clean.isEmpty() || !Wallet.isAddress(chain, address)) return false
+        val contact = Contact(clean, Wallet.canonical(address), chain.id)
+        val next = _contacts.value.filterNot { it.address == contact.address } + contact
+        wallets.contacts = next
+        _contacts.value = next
+        return true
+    }
+
+    fun removeContact(contact: Contact) {
+        val next = _contacts.value - contact
+        wallets.contacts = next
+        _contacts.value = next
+    }
+
+    fun send(coinId: String, amount: Double, to: String): SendResult =
+        engine.send(coinId, amount, to, _wallet.value.ownAddresses).also { if (it is SendResult.Ok) store.save(engine.snapshotForSave()) }
+
+    fun swap(from: String, to: String, amount: Double): SwapResult =
+        engine.swap(from, to, amount).also { if (it is SwapResult.Ok) store.save(engine.snapshotForSave()) }
+
+    fun quoteSwap(from: String, to: String, amount: Double): SwapQuote? = engine.quoteSwap(from, to, amount)
+
+    fun claimAirdrop(): WalletTx? = engine.claimAirdrop()?.also { store.save(engine.snapshotForSave()) }
 
     fun tap(): TapResult = engine.tap()
 

@@ -12,15 +12,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.Diamond
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
-import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.Diamond
+import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.ShowChart
+import androidx.compose.material.icons.outlined.SwapHoriz
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.navigationBarsPadding
+import dev.moonbag.app.ui.wallet.BrowserScreen
+import dev.moonbag.app.ui.wallet.ContactsScreen
+import dev.moonbag.app.ui.wallet.NetworksScreen
+import dev.moonbag.app.ui.wallet.ReceiveScreen
+import dev.moonbag.app.ui.wallet.SeedPhraseScreen
+import dev.moonbag.app.ui.wallet.SendScreen
+import dev.moonbag.app.ui.wallet.SwapScreen
+import dev.moonbag.app.ui.wallet.WalletScreen
+import dev.moonbag.app.ui.wallet.WalletSetupScreen
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -55,10 +66,10 @@ import dev.moonbag.app.ui.portfolio.PortfolioScreen
 import dev.moonbag.app.ui.settings.SettingsScreen
 
 private enum class Tab(val label: Int, val on: ImageVector, val off: ImageVector) {
+    WALLET(R.string.tab_wallet, Icons.Filled.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet),
     MARKET(R.string.tab_market, Icons.Filled.ShowChart, Icons.Outlined.ShowChart),
-    PORTFOLIO(R.string.tab_portfolio, Icons.Filled.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet),
-    NFT(R.string.tab_nft, Icons.Filled.Diamond, Icons.Outlined.Diamond),
-    MINE(R.string.tab_mine, Icons.Filled.Bolt, Icons.Outlined.Bolt),
+    SWAP(R.string.swap, Icons.Filled.SwapHoriz, Icons.Outlined.SwapHoriz),
+    BROWSER(R.string.tab_browser, Icons.Filled.Explore, Icons.Outlined.Explore),
     SETTINGS(R.string.tab_settings, Icons.Filled.Settings, Icons.Outlined.Settings),
 }
 
@@ -69,10 +80,20 @@ fun MoonbagApp(viewModel: MainViewModel) {
     val haptics by viewModel.haptics.collectAsStateWithLifecycle()
     val dynamicColor by viewModel.dynamicColor.collectAsStateWithLifecycle()
     val tutorialDone by viewModel.tutorialDone.collectAsStateWithLifecycle()
+    val wallet by viewModel.wallet.collectAsStateWithLifecycle()
+    val contacts by viewModel.contacts.collectAsStateWithLifecycle()
 
     var tabIndex by rememberSaveable { mutableIntStateOf(0) }
-    // null = tabs, "create" = new-coin form, "coin:<id>" = coin page
-    var overlay by rememberSaveable { mutableStateOf<String?>(if (viewModel.tutorialDone.value) null else "tutorial") }
+    // null = tabs; otherwise a full-screen page: "create", "coin:<id>", "send[:<id>]", "receive", "setup", "seed", ...
+    var overlay by rememberSaveable {
+        mutableStateOf<String?>(
+            when {
+                !viewModel.tutorialDone.value -> "tutorial"
+                !viewModel.wallet.value.exists -> "setup"
+                else -> null
+            },
+        )
+    }
     var certificateId by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbar = remember { SnackbarHostState() }
 
@@ -108,7 +129,56 @@ fun MoonbagApp(viewModel: MainViewModel) {
                 },
             )
         } else if (screen == "tutorial") {
-            TutorialScreen(onFinish = { viewModel.finishTutorial(); overlay = null })
+            TutorialScreen(onFinish = { viewModel.finishTutorial(); overlay = if (wallet.exists) null else "setup" })
+        } else if (screen == "setup") {
+            WalletSetupScreen(
+                wallet = wallet,
+                onCreate = { viewModel.createWallet() },
+                onImport = viewModel::importWallet,
+                onBackedUp = viewModel::confirmBackup,
+                onFinish = { overlay = null },
+            )
+        } else if (screen == "seed") {
+            SeedPhraseScreen(wallet, onConfirmBackup = viewModel::confirmBackup, onBack = { overlay = null })
+        } else if (screen == "networks") {
+            NetworksScreen(state, wallet, onBack = { overlay = null })
+        } else if (screen == "contacts") {
+            ContactsScreen(contacts, viewModel::addContact, viewModel::removeContact, onBack = { overlay = null })
+        } else if (screen == "receive") {
+            ReceiveScreen(state, wallet, onClaimAirdrop = viewModel::claimAirdrop, onSetup = { overlay = "setup" }, onBack = { overlay = null })
+        } else if (screen != null && screen.startsWith("send")) {
+            SendScreen(
+                state = state,
+                wallet = wallet,
+                contacts = contacts,
+                startCoinId = screen.removePrefix("send").removePrefix(":").ifEmpty { null },
+                onSend = viewModel::send,
+                onBack = { overlay = null },
+            )
+        } else if (screen == "mine") {
+            Box(Modifier.fillMaxSize().navigationBarsPadding()) {
+                MineScreen(
+                    state = state,
+                    haptics = haptics,
+                    onTap = viewModel::tap,
+                    onBuyUpgrade = viewModel::buyUpgrade,
+                    onBuyFarm = viewModel::buyFarm,
+                )
+            }
+        } else if (screen == "nft") {
+            Box(Modifier.fillMaxSize().navigationBarsPadding()) {
+                NftScreen(state = state, onMint = viewModel::mintNft, onSell = viewModel::sellNft)
+            }
+        } else if (screen == "stats") {
+            Box(Modifier.fillMaxSize().navigationBarsPadding()) {
+                PortfolioScreen(
+                    state = state,
+                    onOpenCoin = { overlay = "coin:$it" },
+                    onGoMarket = { tabIndex = Tab.MARKET.ordinal; overlay = null },
+                    onOpenBoard = { overlay = "board" },
+                    onCancelOrder = viewModel::cancelOrder,
+                )
+            }
         } else if (screen == "board") {
             BoardScreen(state = state, onBack = { overlay = null })
         } else if (screen != null && screen.startsWith("coin:")) {
@@ -156,39 +226,55 @@ fun MoonbagApp(viewModel: MainViewModel) {
                     label = "tabs",
                 ) { index ->
                     when (Tab.entries[index]) {
+                        Tab.WALLET -> WalletScreen(
+                            state = state,
+                            wallet = wallet,
+                            onSend = { overlay = "send" },
+                            onReceive = { overlay = "receive" },
+                            onSwap = { tabIndex = Tab.SWAP.ordinal },
+                            onEarn = { overlay = "mine" },
+                            onOpenCoin = { overlay = "coin:$it" },
+                            onAnalytics = { overlay = "stats" },
+                            onSetup = { overlay = "setup" },
+                            onBackup = { overlay = "seed" },
+                        )
                         Tab.MARKET -> MarketScreen(
                             state = state,
                             onOpenCoin = { overlay = "coin:$it" },
-                            onGoMine = { tabIndex = Tab.MINE.ordinal },
+                            onGoMine = { overlay = "mine" },
                             onCreateCoin = { overlay = "create" },
                         )
-                        Tab.PORTFOLIO -> PortfolioScreen(
+                        Tab.SWAP -> SwapScreen(
                             state = state,
-                            onOpenCoin = { overlay = "coin:$it" },
-                            onGoMarket = { tabIndex = Tab.MARKET.ordinal },
-                            onOpenBoard = { overlay = "board" },
-                            onCancelOrder = viewModel::cancelOrder,
+                            onSwap = viewModel::swap,
+                            onEarn = { overlay = "mine" },
                         )
-                        Tab.MINE -> MineScreen(
-                            state = state,
-                            haptics = haptics,
-                            onTap = viewModel::tap,
-                            onBuyUpgrade = viewModel::buyUpgrade,
-                            onBuyFarm = viewModel::buyFarm,
-                        )
-                        Tab.NFT -> NftScreen(
-                            state = state,
-                            onMint = viewModel::mintNft,
-                            onSell = viewModel::sellNft,
+                        Tab.BROWSER -> BrowserScreen(
+                            onOpen = { id ->
+                                when (id) {
+                                    "swap" -> tabIndex = Tab.SWAP.ordinal
+                                    "mint" -> overlay = "nft"
+                                    "mine" -> overlay = "mine"
+                                    "launch" -> overlay = "create"
+                                    "airdrop" -> overlay = "receive"
+                                    "board" -> overlay = "board"
+                                    "stats" -> overlay = "stats"
+                                    "networks" -> overlay = "networks"
+                                }
+                            },
                         )
                         Tab.SETTINGS -> SettingsScreen(
                             state = state,
+                            wallet = wallet,
                             dynamicColor = dynamicColor,
                             haptics = haptics,
                             onDynamicColor = viewModel::setDynamicColor,
                             onHaptics = viewModel::setHaptics,
                             onReset = viewModel::resetGame,
                             onOpenTutorial = { overlay = "tutorial" },
+                            onOpenSeed = { overlay = "seed" },
+                            onOpenNetworks = { overlay = "networks" },
+                            onOpenContacts = { overlay = "contacts" },
                         )
                     }
                 }
